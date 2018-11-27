@@ -1,8 +1,0 @@
-BioAI Project: Road Junction Optimization
-
-1. Build custom route script which generate *lots* of routes the normal way, than deletes ALL routes which does not belong to a specific subsets
-2. Bake custom function to change the road infrastructure
-3. Build the main simulation wrapping logic which monitors crashes and stuff, keeping track of arrival delays and things like that.
-4. Integrate a genetic AI which decides over junctions, whether a priority or unregulated_traffic_light is better.
-	=> DECIDE A GENOTYPE!!!
-5. Edit the AI to decide over different timings for traffic lights (again, genotype), with the consequent edit of the road-changer script to integrate traffic light programs (argh)
