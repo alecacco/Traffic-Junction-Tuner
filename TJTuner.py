@@ -66,74 +66,73 @@ class Benchmark():
 	@mutator
 	def mutate(random, candidate, args):
 		treshold = random.random()
-		mutant = candidate
-		
-		print mutant
-		
-		if(candidate['type'] == 't'):
-			if(treshold<0.33):
-				mutant['type']  = 'p'
-			elif(treshold<0.66):
-				ytime = round(candidate['ytime'] +random.gauss(0,1))
-				if(ytime < 0):
-					ytime = -1*ytime
-				mutant['ytime'] = ytime
-			else:
-				grtime = round(candidate['grtime']+random.gauss(0,1))
-				if(grtime < 0):
-					grtime = -1*grtime
-				mutant['grtime'] = grtime
-				
-		elif(candidate['type'] == 'p'):
-			if(treshold <0.5):
-				mutant['type'] = 't'
-			elif(treshold <0.75):
-				ytime = round(candidate['ytime'] +random.gauss(0,1))
-				if(ytime < 0):
-					ytime = -1*ytime
-				mutant['ytime'] = ytime
-			else:
-				grtime = round(candidate['grtime']+random.gauss(0,1))
-				if(grtime < 0):
-					grtime = -1*grtime
-				mutant['grtime'] = grtime
-		return mutant
+		mutationTreshold = random.random()
+		for junction in candidate:
+			if(mutationTreshold<0.99):
+				if(junction['type'] == 't'):
+					if(treshold<0.33):
+						junction['type']  = 'p'
+					elif(treshold<0.66):
+						ytime = round(junction['ytime'] +random.gauss(0,1))
+						if(ytime < 0):
+							ytime = -1*ytime
+						junction['ytime'] = ytime
+					else:
+						grtime = round(junction['grtime']+random.gauss(0,1))
+						if(grtime < 0):
+							grtime = -1*grtime
+						junction['grtime'] = grtime
+				elif(junction['type'] == 'p'):
+					if(treshold <0.5):
+						junction['type'] = 't'
+					elif(treshold <0.75):
+						ytime = round(junction['ytime'] +random.gauss(0,1))
+						if(ytime < 0):
+							ytime = -1*ytime
+						junction['ytime'] = ytime
+					else:
+						grtime = round(junction['grtime']+random.gauss(0,1))
+						if(grtime < 0):
+							grtime = -1*grtime
+						junction['grtime'] = grtime
+		return candidate
 		
 	def crossover(cross):
 		pass
 		
 	@crossover
 	def cross(random, mom, dad, args):
-		tresholdType = random.gauss(0,1)
-		tresholdGrtime = random.gauss(0,1)
-		tresholdYtime = random.gauss(0,1)
-		
-		firstSon = mom
-		secondSon = dad
-		
-		if(tresholdType < 0):
-			firstSon['type'] = mom['type']
-			secondSon['type'] = dad['type']
-		else:
-			firstSon['type'] = dad['type']
-			secondSon['type'] = mom['type']
+		offspring =[]
+		for couple in zip(mom,dad):
+			tresholdType = random.gauss(0,1)
+			tresholdGrtime = random.gauss(0,1)
+			tresholdYtime = random.gauss(0,1)
 			
-		if(tresholdGrtime < 0):
-			firstSon['grtime'] = mom['grtime']
-			secondSon['grtime'] = dad['grtime']
-		else:
-			firstSon['grtime'] = dad['grtime']
-			secondSon['grtime'] = mom['grtime']
+			firstSon = couple[0]
+			secondSon = couple[1]
 			
-		if(tresholdYtime < 0):
-			firstSon['ytime'] = mom['ytime']
-			secondSon['type'] = dad['ytime']
-		else:
-			firstSon['ytime'] = dad['ytime']
-			secondSon['ytime'] = mom['ytime']
-			
-		return [firstSon,secondSon]
-
+			if(tresholdType < 0):
+				firstSon['type'] = couple[0]['type']
+				secondSon['type'] = couple[1]['type']
+			else:
+				firstSon['type'] = couple[1]['type']
+				secondSon['type'] = couple[0]['type']
+				
+			if(tresholdGrtime < 0):
+				firstSon['grtime'] = couple[0]['grtime']
+				secondSon['grtime'] = couple[1]['grtime']
+			else:
+				firstSon['grtime'] = couple[1]['grtime']
+				secondSon['grtime'] = couple[0]['grtime']
+				
+			if(tresholdYtime < 0):
+				firstSon['ytime'] = couple[0]['ytime']
+				secondSon['type'] = couple[1]['ytime']
+			else:
+				firstSon['ytime'] = couple[1]['ytime']
+				secondSon['ytime'] = couple[0]['ytime']
+			offspring.append([firstSon,secondSon])
+		return offspring
 
 def execute_scenario():
 	dprint("[ launching simulation... ]")
