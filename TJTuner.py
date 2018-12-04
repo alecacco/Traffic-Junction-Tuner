@@ -63,6 +63,83 @@ results = []
 folder = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
 os.mkdir(folder)
 
+#myBench
+class Benchmark(): 
+	def mutator(mutate):
+		pass
+		
+	@mutator
+	def mutate(random, candidate, args):
+		treshold = random.random()
+		mutant = candidate
+		
+		print mutant
+		
+		if(candidate['type'] == 't'):
+			if(treshold<0.33):
+				mutant['type']  = 'p'
+			elif(treshold<0.66):
+				ytime = round(candidate['ytime'] +random.gauss(0,1))
+				if(ytime < 0):
+					ytime = -1*ytime
+				mutant['ytime'] = ytime
+			else:
+				grtime = round(candidate['grtime']+random.gauss(0,1))
+				if(grtime < 0):
+					grtime = -1*grtime
+				mutant['grtime'] = grtime
+				
+		elif(candidate['type'] == 'p'):
+			if(treshold <0.5):
+				mutant['type'] = 't'
+			elif(treshold <0.75):
+				ytime = round(candidate['ytime'] +random.gauss(0,1))
+				if(ytime < 0):
+					ytime = -1*ytime
+				mutant['ytime'] = ytime
+			else:
+				grtime = round(candidate['grtime']+random.gauss(0,1))
+				if(grtime < 0):
+					grtime = -1*grtime
+				mutant['grtime'] = grtime
+		return mutant
+		
+	def crossover(cross):
+		pass
+		
+	@crossover
+	def cross(random, mom, dad, args):
+		tresholdType = random.gauss(0,1)
+		tresholdGrtime = random.gauss(0,1)
+		tresholdYtime = random.gauss(0,1)
+		
+		firstSon = mom
+		secondSon = dad
+		
+		if(tresholdType < 0):
+			firstSon['type'] = mom['type']
+			secondSon['type'] = dad['type']
+		else:
+			firstSon['type'] = dad['type']
+			secondSon['type'] = mom['type']
+			
+		if(tresholdGrtime < 0):
+			firstSon['grtime'] = mom['grtime']
+			secondSon['grtime'] = dad['grtime']
+		else:
+			firstSon['grtime'] = dad['grtime']
+			secondSon['grtime'] = mom['grtime']
+			
+		if(tresholdYtime < 0):
+			firstSon['ytime'] = mom['ytime']
+			secondSon['type'] = dad['ytime']
+		else:
+			firstSon['ytime'] = dad['ytime']
+			secondSon['ytime'] = mom['ytime']
+			
+		return [firstSon,secondSon]
+
+
 def execute_scenario():
 	dprint("[ launching simulation... ]")
 	sumoProcess = subprocess32.Popen(sumoLaunch, stdout=subprocess32.PIPE, stderr=subprocess32.PIPE)
