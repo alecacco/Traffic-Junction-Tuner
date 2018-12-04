@@ -30,6 +30,10 @@ import subprocess32
 import time
 import datetime
 import os
+from inspyred import benchmarks
+from inspyred_utils import NumpyRandomWrapper
+from multi_objective import run
+from inspyred.ec.emo import Pareto
 
 #custom xml writer function
 def write_xml(root,location):
@@ -52,6 +56,7 @@ sumoProcess = None
 #other parameters
 recreateScenario = args.recreate==1
 gen = 0
+ind = 0
 
 #simulations result
 results = []
@@ -154,7 +159,7 @@ def execute_scenario():
 
 	t.close()
 	sumoProcess.wait()
-	print ("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
+	dprint ("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
 	return({"accidents":accidents, "arrived":arrived})
 
 def generate_scenario(**kwargs):
@@ -172,17 +177,17 @@ def generate_scenario(**kwargs):
 
 	netconvertProcess = subprocess32.Popen(netconvertLaunch,stdout=subprocess32.PIPE)
 	netconvertProcess.wait()
-	print ("[ netconvert return code: " + str(netconvertProcess.returncode) + " ]")
+	dprint ("[ netconvert return code: " + str(netconvertProcess.returncode) + " ]")
 
 def clean_scenario():
 	nod = ET.parse(sumoScenario + ".nod.xml").getroot()
 	for e in list(nod)[1:]:
 		e.set("type", "priority")
-	write_xml(nod, folder + "/gen0_" + sumoScenario + '.nod.xml')
+	write_xml(nod, "clean_" + sumoScenario + '.nod.xml')
 
 	tll = ET.parse(sumoScenario + ".tll.xml").getroot()
 	tll.clear()
-	write_xml(tll, folder + "/gen0_" + sumoScenario + '.tll.xml')
+	write_xml(tll, "clean_" + sumoScenario + '.tll.xml')
 
 def tl_combinations(connectionSets):
 	res = []
@@ -234,8 +239,8 @@ def generate_traffic_light(indexes):
 	scenario = {
 		"edg" : ET.parse(sumoScenario+'.edg.xml'),
 		"con" : ET.parse(sumoScenario+'.con.xml'),
-		"tll" : ET.parse(folder + "/gen" + str(gen) + "_" + sumoScenario + '.tll.xml'),
-		"nod" : ET.parse(folder + "/gen" + str(gen) + "_" + sumoScenario + '.nod.xml')
+		"tll" : ET.parse("clean_" + sumoScenario + '.tll.xml'),
+		"nod" : ET.parse("clean_" + sumoScenario + '.nod.xml')
 	}
 	'''
 	#load all scenario files as ET
@@ -300,24 +305,112 @@ def generate_traffic_light(indexes):
 	for c in connectionsToAppend:
 		scenario['tll'].getroot().append(c)
 
-	write_xml(scenario['tll'].getroot(), folder+"/gen"+str(gen+1)+"_"+sumoScenario+".tll.xml")
-	write_xml(scenario['nod'].getroot(), folder+"/gen"+str(gen+1)+"_"+sumoScenario+".nod.xml")
+	write_xml(scenario['tll'].getroot(), folder+"/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario+".tll.xml")
+	write_xml(scenario['nod'].getroot(), folder+"/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario+".nod.xml")
 
+class TJBenchmark(benchmarks.Benchmark):
+	
+	results_storage = {}
+	junctionNumber = 0
 
+	def evaluatorator(self,objective):
+		def evaluator(self,candidates,args):
+			global gen
+			global ind
+			ind = 0
+			#generate and execute_scenario
+			for candidate in candidates:
+				candidate['gen'] = gen
+				candidate['ind'] = ind
+
+				generate_traffic_light(candidate['scenario'])
+
+				generate_scenario(
+					node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
+					tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
+				)
+				sim_result = execute_scenario() 
+				TJBenchmark.results_storage[str(candidate['gen'])+'_'+str(candidate['ind'])] = {}
+				for key,value in sim_result.items():
+					TJBenchmark.results_storage[
+						str(candidate['gen'])+'_'+str(candidate['ind'])
+					][str(key)] = value
+				ind += 1
+			gen += 1
+			return [
+				TJBenchmark.results_storage[
+					str(candidate['gen'])+'_'+str(candidate['ind'])
+				][objective] 
+				for candidate in candidates
+			]
+		return evaluator
+
+	def __init__(self, junctionNumber=0, objectives=["accidents","arrived"]):
+		benchmarks.Benchmark.__init__(self, self.junctionNumber, len(objectives))
+		self.junctionNumber = junctionNumber
+		#self.bounder = ?
+		self.maximize = False
+		#self.evaluators = [cls(dimensions).evaluator for cls in objectives]
+		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
+		clean_scenario()
+
+	'''
+	def evaluate_accidents(self,candidate,args):
+		return results_storage[candidate]['accidents']
+
+	def evaluator_accidents(self, candidates, args):
+		return [evaluate(candidate) for candidate in candidates]
+
+	def evaluate_arrived(self,candidate,args):
+		return results_storage[candidate]['arrived']
+
+	def evaluator_arrived(self, candidates, args):
+		return [evaluate(candidate) for candidate in candidates]
+	'''
+	def generator(self, random, args):
+		#return [random.uniform(-5.0, 5.0) for _ in range(self.dimensions)]
+		global ind
+		new_ind = {
+			'gen':0,
+			'ind':ind,
+			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
+				{
+					'type':random.choice(['p','t']),
+					'ytime':random.uniform(high=10,low=1),
+					'grtime':random.uniform(high=50,low=10)
+				} 
+				for _ in range(self.junctionNumber)
+			]
+		}
+		ind +=1
+		return new_ind
+		
+	def evaluator(self, candidates, args):
+		fitness = [evaluator(self,candidates, args) for evaluator in self.evaluators]
+		return map(Pareto, zip(*fitness))
+
+	def cross(random,mom,dad,args):
+		pass
+
+	def mutate(random,candidate,args):
+		pass
 
 if __name__ ==  "__main__":
 	if recreateScenario:
 		dprint("[ Regenerating scenario files... ]")
 		generate_scenario()
 
+	problem = TJBenchmark(junctionNumber=9)
+	run(NumpyRandomWrapper(),problem, pop_size=10, max_generations=args.generations)
+	'''
 	#load scenario, convert all junctions to "priority" and saving as gen0 scenario in $folder
 	clean_scenario()	
 
 	while gen < args.generations:
 		if gen>0:
 			generate_scenario(
-				node = folder + "/gen"+str(gen)+"_"+sumoScenario,
-				tllogic = folder + "/gen"+str(gen)+"_"+sumoScenario
+				node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
+				tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
 			)
 		# execute scenario
 		sim_result = execute_scenario() 
@@ -326,20 +419,20 @@ if __name__ ==  "__main__":
 		# decide new parameters
 		# edit scenario
 		generate_traffic_light([
-				{'type':'t','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
 				{'type':'t','ytime':3,'grtime':10}, #THIS FFS is the main junction with a meaningful place to put a traffic light
-				{'type':'t','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
+				{'type':'p','ytime':3,'grtime':10},
 			])
 
 		gen += 1
 
 
 	print results
-
+	'''
 
