@@ -65,79 +65,9 @@ os.mkdir(folder)
 
 #myBench
 class Benchmark(): 
-	def mutator(mutate):
-		pass
+
 		
-	@mutator
-	def mutate(random, candidate, args):
-		treshold = random.random()
-		mutationTreshold = random.random()
-		for junction in candidate:
-			if(mutationTreshold<0.99):
-				if(junction['type'] == 't'):
-					if(treshold<0.33):
-						junction['type']  = 'p'
-					elif(treshold<0.66):
-						ytime = round(junction['ytime'] +random.gauss(0,1))
-						if(ytime < 0):
-							ytime = -1*ytime
-						junction['ytime'] = ytime
-					else:
-						grtime = round(junction['grtime']+random.gauss(0,1))
-						if(grtime < 0):
-							grtime = -1*grtime
-						junction['grtime'] = grtime
-				elif(junction['type'] == 'p'):
-					if(treshold <0.5):
-						junction['type'] = 't'
-					elif(treshold <0.75):
-						ytime = round(junction['ytime'] +random.gauss(0,1))
-						if(ytime < 0):
-							ytime = -1*ytime
-						junction['ytime'] = ytime
-					else:
-						grtime = round(junction['grtime']+random.gauss(0,1))
-						if(grtime < 0):
-							grtime = -1*grtime
-						junction['grtime'] = grtime
-		return candidate
-		
-	def crossover(cross):
-		pass
-		
-	@crossover
-	def cross(random, mom, dad, args):
-		offspring =[]
-		for couple in zip(mom,dad):
-			tresholdType = random.gauss(0,1)
-			tresholdGrtime = random.gauss(0,1)
-			tresholdYtime = random.gauss(0,1)
-			
-			firstSon = couple[0]
-			secondSon = couple[1]
-			
-			if(tresholdType < 0):
-				firstSon['type'] = couple[0]['type']
-				secondSon['type'] = couple[1]['type']
-			else:
-				firstSon['type'] = couple[1]['type']
-				secondSon['type'] = couple[0]['type']
-				
-			if(tresholdGrtime < 0):
-				firstSon['grtime'] = couple[0]['grtime']
-				secondSon['grtime'] = couple[1]['grtime']
-			else:
-				firstSon['grtime'] = couple[1]['grtime']
-				secondSon['grtime'] = couple[0]['grtime']
-				
-			if(tresholdYtime < 0):
-				firstSon['ytime'] = couple[0]['ytime']
-				secondSon['type'] = couple[1]['ytime']
-			else:
-				firstSon['ytime'] = couple[1]['ytime']
-				secondSon['ytime'] = couple[0]['ytime']
-			offspring.append([firstSon,secondSon])
-		return offspring
+	
 
 def execute_scenario():
 	dprint("[ launching simulation... ]")
@@ -389,11 +319,80 @@ class TJBenchmark(benchmarks.Benchmark):
 		fitness = [evaluator(self,candidates, args) for evaluator in self.evaluators]
 		return map(Pareto, zip(*fitness))
 
-	def cross(random,mom,dad,args):
+	def mutator(mutate):
 		pass
-
-	def mutate(random,candidate,args):
-		pass
+		
+	@mutator
+	def mutate(random, candidate, args):
+		treshold = random.random()
+		mutationTreshold = random.random()
+		list = candidate['scenario']
+		for junction in list:
+			if(mutationTreshold<0.99):
+				if(junction['type'] == 't'):
+					if(treshold<0.33):
+						junction['type']  = 'p'
+					elif(treshold<0.66):
+						ytime = round(junction['ytime'] +random.gauss(0,1))
+						if(ytime < 0):
+							ytime = -1*ytime
+						junction['ytime'] = ytime
+					else:
+						grtime = round(junction['grtime']+random.gauss(0,1))
+						if(grtime < 0):
+							grtime = -1*grtime
+						junction['grtime'] = grtime
+				elif(junction['type'] == 'p'):
+					if(treshold <0.5):
+						junction['type'] = 't'
+					elif(treshold <0.75):
+						ytime = round(junction['ytime'] +random.gauss(0,1))
+						if(ytime < 0):
+							ytime = -1*ytime
+						junction['ytime'] = ytime
+					else:
+						grtime = round(junction['grtime']+random.gauss(0,1))
+						if(grtime < 0):
+							grtime = -1*grtime
+						junction['grtime'] = grtime
+		candidate['scenario']=list
+		return candidate
+	def crossover(cross):
+			pass
+			
+		@crossover
+		def cross(random, mom, dad, args):
+			offspring =[]
+			for couple in zip(mom,dad):
+				tresholdType = random.gauss(0,1)
+				tresholdGrtime = random.gauss(0,1)
+				tresholdYtime = random.gauss(0,1)
+				
+				firstSon = couple[0]['scenario']
+				secondSon = couple[1]['scenario']
+				
+				if(tresholdType < 0):
+					firstSon['type'] = couple[0]['type']
+					secondSon['type'] = couple[1]['type']
+				else:
+					firstSon['type'] = couple[1]['type']
+					secondSon['type'] = couple[0]['type']
+					
+				if(tresholdGrtime < 0):
+					firstSon['grtime'] = couple[0]['grtime']
+					secondSon['grtime'] = couple[1]['grtime']
+				else:
+					firstSon['grtime'] = couple[1]['grtime']
+					secondSon['grtime'] = couple[0]['grtime']
+					
+				if(tresholdYtime < 0):
+					firstSon['ytime'] = couple[0]['ytime']
+					secondSon['type'] = couple[1]['ytime']
+				else:
+					firstSon['ytime'] = couple[1]['ytime']
+					secondSon['ytime'] = couple[0]['ytime']
+				offspring.append([firstSon,secondSon])
+			return offspring
 
 if __name__ ==  "__main__":
 	if recreateScenario:
