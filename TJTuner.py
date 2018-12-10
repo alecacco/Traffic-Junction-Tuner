@@ -34,12 +34,14 @@ from inspyred import benchmarks
 from inspyred_utils import NumpyRandomWrapper
 from multi_objective import run
 from inspyred.ec.emo import Pareto
+from inspyred.ec.variators import mutator
+from inspyred.ec.variators import crossover
 
 #custom xml writer function
 def write_xml(root,location):
 	prettyttl = minidom.parseString(ET.tostring(root).decode('utf8')).toprettyxml(indent="   ")
 	with open(location,"w") as f:
-		f.write(prettyttl.encode("utf8"))	
+		f.write(prettyttl.encode("utf8"))
 
 #SUMO/TraCI parameters
 sumoAutoStart=""
@@ -66,7 +68,7 @@ os.mkdir(folder)
 
 def execute_scenario():
 	dprint("[ launching simulation... ]")
-	sumoProcess = subprocess32.Popen(sumoLaunch, stdout=subprocess32.PIPE, stderr=subprocess32.PIPE)
+        sumoProcess = subprocess32.Popen(sumoLaunch)#TODO, stdout=subprocess32.PIPE, stderr=subprocess32.PIPE)
 	time.sleep(1)
 	t = traci.connect(port=sumoPort)
 
@@ -146,12 +148,12 @@ def tl_combinations(connectionSets):
 
 '''
 load current generation files and generates next generation tll and nod files based on input parameter
-parameter indexes is a list of dictionaries, each of them specifying informations for a specific junction. 
+parameter indexes is a list of dictionaries, each of them specifying informations for a specific junction.
 	Example:
 	indexes = [
 		{'type':'t','ytime':3,'grtime':10},
 		{'type':'t','ytime':3,'grtime':10},
-		{'type':'t','ytime':3,'grtime':10}, #THIS is the main junction 
+		{'type':'t','ytime':3,'grtime':10}, #THIS is the main junction
 		{'type':'t','ytime':3,'grtime':10},
 		{'type':'t','ytime':3,'grtime':10},
 		{'type':'t','ytime':3,'grtime':10},
@@ -234,17 +236,18 @@ def generate_traffic_light(indexes):
 	write_xml(scenario['nod'].getroot(), folder+"/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario+".nod.xml")
 
 class TJBenchmark(benchmarks.Benchmark):
-	
+
 	results_storage = {}
 	junctionNumber = 0
 
 	def evaluatorator(self,objective):
-		def evaluator(self,candidates,args):
+		def evaluate(self,candidates,args):
 			global gen
 			global ind
-			ind = 0
+                        ind = 0
 			#generate and execute_scenario
 			for candidate in candidates:
+                                dprint("[ evaluating - gen:"+str(gen)+" ind:"+str(ind)+" ]")
 				candidate['gen'] = gen
 				candidate['ind'] = ind
 
@@ -254,7 +257,7 @@ class TJBenchmark(benchmarks.Benchmark):
 					node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
 					tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
 				)
-				sim_result = execute_scenario() 
+				sim_result = execute_scenario()
 				TJBenchmark.results_storage[str(candidate['gen'])+'_'+str(candidate['ind'])] = {}
 				for key,value in sim_result.items():
 					TJBenchmark.results_storage[
@@ -265,10 +268,10 @@ class TJBenchmark(benchmarks.Benchmark):
 			return [
 				TJBenchmark.results_storage[
 					str(candidate['gen'])+'_'+str(candidate['ind'])
-				][objective] 
+				][objective]
 				for candidate in candidates
 			]
-		return evaluator
+		return evaluate
 
 	def __init__(self, junctionNumber=0, objectives=["accidents","arrived"]):
 		benchmarks.Benchmark.__init__(self, self.junctionNumber, len(objectives))
@@ -277,6 +280,7 @@ class TJBenchmark(benchmarks.Benchmark):
 		self.maximize = False
 		#self.evaluators = [cls(dimensions).evaluator for cls in objectives]
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
+		#self.variator = [self.cross,self.mutate]
 		clean_scenario()
 
 	'''
@@ -303,19 +307,17 @@ class TJBenchmark(benchmarks.Benchmark):
 					'type':random.choice(['p','t']),
 					'ytime':random.uniform(high=10,low=1),
 					'grtime':random.uniform(high=50,low=10)
-				} 
+				}
 				for _ in range(self.junctionNumber)
 			]
 		}
 		ind +=1
 		return new_ind
-		
+
 	def evaluator(self, candidates, args):
 		fitness = [evaluator(self,candidates, args) for evaluator in self.evaluators]
 		return map(Pareto, zip(*fitness))
-
-	
-	@mutator
+        @mutator
 	def mutate(random, candidate, args):
 		treshold = random.random()
 		mutationTreshold = random.random()
@@ -350,33 +352,32 @@ class TJBenchmark(benchmarks.Benchmark):
 						junction['grtime'] = grtime
 		candidate['scenario']=li
 		return candidate
-	
-	@crossover
+        @crossover
 	def cross(random, mom, dad, args):
 		offspring =[]
-		
+
 		for couple in zip(mom['scenario'],dad['scenario']):
 			tresholdType = random.gauss(0,1)
 			tresholdGrtime = random.gauss(0,1)
 			tresholdYtime = random.gauss(0,1)
-			
+
 			firstSon = couple[0]
 			secondSon = couple[1]
-			
+
 			if(tresholdType < 0):
 				firstSon['type'] = couple[0]['type']
 				secondSon['type'] = couple[1]['type']
 			else:
 				firstSon['type'] = couple[1]['type']
 				secondSon['type'] = couple[0]['type']
-				
+
 			if(tresholdGrtime < 0):
 				firstSon['grtime'] = couple[0]['grtime']
 				secondSon['grtime'] = couple[1]['grtime']
 			else:
 				firstSon['grtime'] = couple[1]['grtime']
 				secondSon['grtime'] = couple[0]['grtime']
-				
+
 			if(tresholdYtime < 0):
 				firstSon['ytime'] = couple[0]['ytime']
 				secondSon['type'] = couple[1]['ytime']
@@ -392,10 +393,11 @@ if __name__ ==  "__main__":
 		generate_scenario()
 
 	problem = TJBenchmark(junctionNumber=9)
-	run(NumpyRandomWrapper(),problem, pop_size=10, max_generations=args.generations)
+	res = run(NumpyRandomWrapper(),problem, pop_size=2, max_generations=args.generations)
+        print res
 	'''
 	#load scenario, convert all junctions to "priority" and saving as gen0 scenario in $folder
-	clean_scenario()	
+	clean_scenario()
 
 	while gen < args.generations:
 		if gen>0:
@@ -404,8 +406,8 @@ if __name__ ==  "__main__":
 				tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
 			)
 		# execute scenario
-		sim_result = execute_scenario() 
-		results.append(sim_result) 
+		sim_result = execute_scenario()
+		results.append(sim_result)
 		# check output
 		# decide new parameters
 		# edit scenario
