@@ -10,10 +10,10 @@ import plot_utils
 def run(random, problem, display=False, num_vars=0, use_bounder=True,
         variator=None, **kwargs) :
     """ run NSGA2 on the given problem """
-
+	
     #create dictionaries to store data about initial population, and lines
     initial_pop_storage = {}
-
+	
     algorithm = NSGA2(random)
     algorithm.terminator = terminators.generation_termination
     if variator is None :

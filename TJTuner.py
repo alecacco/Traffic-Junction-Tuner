@@ -12,7 +12,9 @@ parser.add_argument("-d","--debug", type=int, help="Set to 1 to see debug output
 parser.add_argument("-a","--autostart", type=int, help="Set to 1 to start the simulation automatically. Default is 1", default=0)
 parser.add_argument("-e","--end", type=int, help="Simulation duration in step number. Default is 3600.", default=3600)
 parser.add_argument("-sd","--step-delay", type=float, help="Delay of each step, useful for GUI demostrations. Default is 0", default=0)
-
+parser.add_argument("-mr","--mutation-rate", type=float, help="Rate of mutation. Default is 0.1", default=0.1)
+parser.add_argument("-of","--offspring", type=int, help="Maximun number of offspring. Default is 2", default=2)
+parser.add_argument("-cr","--crossover-rate", type=float, help="Rate of crossover. Default is 0.8", default=0.8)
 args = parser.parse_args()
 
 #custom print function which deletes [ * ] with debug mode disabled
@@ -30,6 +32,7 @@ import subprocess32
 import time
 import datetime
 import os
+import math
 from inspyred import benchmarks
 from inspyred_utils import NumpyRandomWrapper
 from multi_objective import run
@@ -59,6 +62,7 @@ sumoProcess = None
 recreateScenario = args.recreate==1
 gen = 0
 ind = 0
+junctionNumber = 9
 
 #simulations result
 results = []
@@ -68,13 +72,13 @@ os.mkdir(folder)
 
 def execute_scenario():
 	dprint("[ launching simulation... ]")
-        sumoProcess = subprocess32.Popen(sumoLaunch)#TODO, stdout=subprocess32.PIPE, stderr=subprocess32.PIPE)
+        sumoProcess = subprocess32.Popen(sumoLaunch, stdout=subprocess32.PIPE, stderr=subprocess32.PIPE)
 	time.sleep(1)
 	t = traci.connect(port=sumoPort)
 
 	accidents = 0
 	arrived = 0
-
+	
 	stepsLeft = sumoEnd
 	while(stepsLeft>=0):
 		stepsLeft-=1
@@ -238,8 +242,7 @@ def generate_traffic_light(indexes):
 class TJBenchmark(benchmarks.Benchmark):
 
 	results_storage = {}
-	junctionNumber = 0
-
+	
 	def evaluatorator(self,objective):
 		def evaluate(self,candidates,args):
 			global gen
@@ -273,14 +276,14 @@ class TJBenchmark(benchmarks.Benchmark):
 			]
 		return evaluate
 
-	def __init__(self, junctionNumber=0, objectives=["accidents","arrived"]):
-		benchmarks.Benchmark.__init__(self, self.junctionNumber, len(objectives))
-		self.junctionNumber = junctionNumber
+	def __init__(self, objectives=["accidents","arrived"]):
+		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))
 		#self.bounder = ?
 		self.maximize = False
 		#self.evaluators = [cls(dimensions).evaluator for cls in objectives]
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
-		#self.variator = [self.cross,self.mutate]
+		#self.variator = [mutator,crossover]
+		
 		clean_scenario()
 
 	'''
@@ -302,13 +305,15 @@ class TJBenchmark(benchmarks.Benchmark):
 		new_ind = {
 			'gen':0,
 			'ind':ind,
+			'sigmaMutator':1,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
 					'type':random.choice(['p','t']),
 					'ytime':random.uniform(high=10,low=1),
 					'grtime':random.uniform(high=50,low=10)
+					
 				}
-				for _ in range(self.junctionNumber)
+				for _ in range(junctionNumber)
 			]
 		}
 		ind +=1
@@ -317,10 +322,52 @@ class TJBenchmark(benchmarks.Benchmark):
 	def evaluator(self, candidates, args):
 		fitness = [evaluator(self,candidates, args) for evaluator in self.evaluators]
 		return map(Pareto, zip(*fitness))
-        @mutator
+		
+		
+@mutator
+def mutate(random, candidate, args):
+	dprint(" [ MUTATE ]")
+	if(args["mutationRate"] >= random.uniform(0,1)):
+		sigmaMutator = candidate['sigmaMutator']
+		candidate['sigmaMutator'] = candidate['sigmaMutator'] * math.exp( (1.0/math.sqrt(junctionNumber)) * random.gauss(0,1) )
+		if(candidate['sigmaMutator']  < 0.01):
+			candidate['sigmaMutator']  = 0.01
+		junctions = candidate['scenario']
+		for junction in junctions:
+		
+			if(junction['type'] == 't'):
+			
+				if(sigmaMutator*random.gauss(0,1) > 1):
+						junction['type']  = 'p'
+				else:
+					ytime = round(junction['ytime'] + sigmaMutator*random.gauss(0,1))
+					if(ytime < 0):
+						ytime = -1 * ytime
+					junction['ytime'] = ytime
+					grtime = round(junction['grtime'] + random.gauss(0,1))
+					if(grtime < 0):
+						grtime = -1 * grtime
+					junction['grtime'] = grtime
+					
+			elif(junction['type'] == 'p'):
+			
+				if(sigmaMutator * random.gauss(0,1) > 1):
+					junction['type'] = 't'
+					ytime = round(junction['ytime'] + random.gauss(0,1))
+					if(ytime < 0):
+						ytime = -1 * ytime
+					junction['ytime'] = ytime
+					grtime = round(junction['grtime'] + random.gauss(0,1))
+					if(grtime < 0):
+						grtime = -1 * grtime
+					junction['grtime'] = grtime
+					
+		candidate['scenario']=junctions
+	return candidate
+	"""
 	def mutate(random, candidate, args):
-		treshold = random.random()
-		mutationTreshold = random.random()
+		treshold = random.uniform(0,1)
+		mutationTreshold = random.uniform(0,1)
 		li = candidate['scenario']
 		for junction in li:
 			if(mutationTreshold<0.99):
@@ -352,48 +399,67 @@ class TJBenchmark(benchmarks.Benchmark):
 						junction['grtime'] = grtime
 		candidate['scenario']=li
 		return candidate
-        @crossover
-	def cross(random, mom, dad, args):
-		offspring =[]
+		"""
+@crossover
+def cross(random, mom, dad, args):
 
-		for couple in zip(mom['scenario'],dad['scenario']):
-			tresholdType = random.gauss(0,1)
-			tresholdGrtime = random.gauss(0,1)
-			tresholdYtime = random.gauss(0,1)
+	dprint(" [ CROSS ]")
+	
+	offspringNumber = args["offspring"]
+	crossoverRate = args["crossoverRate"]
+	offsprings =[]
+	newGen = mom["gen"] + 1
+	offspring = {
+			'gen':newGen,
+			'ind':0,
+			'sigmaMutator':1,
+			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
+				{
+					'type':random.choice(['p','t']),
+					'ytime':random.uniform(high=10,low=1),
+					'grtime':random.uniform(high=50,low=10)
+					
+				}
+				for _ in range(junctionNumber)
+			]
+		}
+		
+	if(crossoverRate >= random.uniform(0,1)):
+		for i in range(offspringNumber):
+			junction = 0
+			for couple in zip(mom['scenario'],dad['scenario']):
+				
+				tresholdType = random.uniform(0,1)
+				tresholdGrtime = random.uniform(0,1)
+				tresholdYtime = random.uniform(0,1)
 
-			firstSon = couple[0]
-			secondSon = couple[1]
+				if(tresholdType < 0.5):
+					offspring['scenario'][junction]['type'] = couple[0]['type'] 
+				else:
+					offspring['scenario'][junction]['type'] = couple[1]['type']
 
-			if(tresholdType < 0):
-				firstSon['type'] = couple[0]['type']
-				secondSon['type'] = couple[1]['type']
-			else:
-				firstSon['type'] = couple[1]['type']
-				secondSon['type'] = couple[0]['type']
-
-			if(tresholdGrtime < 0):
-				firstSon['grtime'] = couple[0]['grtime']
-				secondSon['grtime'] = couple[1]['grtime']
-			else:
-				firstSon['grtime'] = couple[1]['grtime']
-				secondSon['grtime'] = couple[0]['grtime']
-
-			if(tresholdYtime < 0):
-				firstSon['ytime'] = couple[0]['ytime']
-				secondSon['type'] = couple[1]['ytime']
-			else:
-				firstSon['ytime'] = couple[1]['ytime']
-				secondSon['ytime'] = couple[0]['ytime']
-			offspring.append([firstSon,secondSon])
-		return offspring
+				offspring['scenario'][junction]['grtime'] = couple[0]['grtime'] * tresholdGrtime + couple[1]['grtime'] * (1-tresholdGrtime)
+				offspring['scenario'][junction]['ytime'] = couple[0]['ytime'] * tresholdYtime + couple[1]['ytime'] * (1-tresholdYtime)
+				junction += 1
+				
+			offsprings.append(offspring)
+			
+	return offsprings
 
 if __name__ ==  "__main__":
 	if recreateScenario:
 		dprint("[ Regenerating scenario files... ]")
 		generate_scenario()
 
-	problem = TJBenchmark(junctionNumber=9)
-	res = run(NumpyRandomWrapper(),problem, pop_size=2, max_generations=args.generations)
+	problem = TJBenchmark()
+	margs = {}
+	margs["mutationRate"] = args.mutation_rate
+	margs["crossoverRate"] = args.crossover_rate
+	margs["offspring"] = args.offspring
+	margs["variator"] = [cross,mutate]
+	
+	
+	res = run(NumpyRandomWrapper(),problem, pop_size=2, max_generations=args.generations, **margs )
         print res
 	'''
 	#load scenario, convert all junctions to "priority" and saving as gen0 scenario in $folder
