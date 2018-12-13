@@ -19,6 +19,12 @@ parser.add_argument("-ps","--pop-size", type=int, help="Population size, 5 as de
 parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program before the simulation, in order to manually connect to problematic scenarios via TraCI", default=0)
 parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
 parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
+
+parser.add_argument("-y_min","--yellow_min", type=int, help="Min time for yellow. Default is 1", default = 1)
+parser.add_argument("-y_max","--yellow_max", type=int, help="Max time for yellow. Default is 10", default = 10)
+parser.add_argument("-gr_min","--green_min", type=int, help="Min time for green and red. Default is 1", default = 1)
+parser.add_argument("-gr_max","--green_max", type=int, help="Max time for green and red. Default is 40", default = 40)
+
 args = parser.parse_args()
 
 #custom print function which deletes [ * ] with debug mode disabled
@@ -302,11 +308,11 @@ class TJBenchmark(benchmarks.Benchmark):
 
 	def __init__(self, objectives=["accidents","arrived"]):
 		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))
-		#self.bounder = ?
+		self.bounder = TJTBounder()
 		self.maximize = False
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
 
-		#self.variator = [mutator,crossover]
+		self.variator = [mutate,cross]
 		
 		clean_scenario()
 
@@ -320,8 +326,8 @@ class TJBenchmark(benchmarks.Benchmark):
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
 					'type':random.choice(['p','t']),
-					'ytime':random.uniform(high=10,low=1),
-					'grtime':random.uniform(high=50,low=10)
+					'ytime':random.uniform(high=args["yellow_max"],low=args["yellow_min"]),
+					'grtime':random.uniform(high=args["green_max"],low=args["green_min"])
 					
 				}
 				for _ in range(junctionNumber)
@@ -341,6 +347,7 @@ def mutate(random, candidate, args):
 	if(args["mutationRate"] >= random.uniform(0,1)):
 		dprint("[ \t->mutation happened ]")
 		sigmaMutator = candidate['sigmaMutator']
+		print sigmaMutator
 		candidate['sigmaMutator'] = candidate['sigmaMutator'] * math.exp( (1.0/math.sqrt(junctionNumber)) * random.gauss(0,1) )
 		if(candidate['sigmaMutator']  < 0.01):
 			candidate['sigmaMutator']  = 0.01
@@ -354,13 +361,13 @@ def mutate(random, candidate, args):
 				else:
 					ytime = 0
 					while (ytime == 0):
-						ytime = round(junction['ytime'] + random.gauss(0,1))
+						ytime = round(junction['ytime'] + 10*random.gauss(0,1))
 					if(ytime < 0):
 						ytime = -1 * ytime
 					junction['ytime'] = ytime
 					grtime = 0
 					while (grtime == 0):
-						grtime = round(junction['grtime'] + random.gauss(0,1))
+						grtime = round(junction['grtime'] + 10*random.gauss(0,1))
 					if(grtime < 0):
 						grtime = -1 * grtime
 					junction['grtime'] = grtime
@@ -371,13 +378,13 @@ def mutate(random, candidate, args):
 					junction['type'] = 't'
 					ytime = 0
 					while (ytime == 0):
-						ytime = round(junction['ytime'] + random.gauss(0,1))
+						ytime = round(junction['ytime'] + 10*random.gauss(0,1))
 					if(ytime < 0):
 						ytime = -1 * ytime
 					junction['ytime'] = ytime
 					grtime = 0
 					while (grtime == 0):
-						grtime = round(junction['grtime'] + random.gauss(0,1))
+						grtime = round(junction['grtime'] + 10*random.gauss(0,1))
 					if(grtime < 0):
 						grtime = -1 * grtime
 					junction['grtime'] = grtime
@@ -426,15 +433,16 @@ def cross(random, mom, dad, args):
 	offspringNumber = args["offspring"]
 	crossoverRate = args["crossoverRate"]
 	offsprings =[]
+	newSigmaMutator = (mom["sigmaMutator"]+mom["sigmaMutator"])/2
 	#newGen = mom["gen"] + 1
 	offspring = {
 			'ind':-1,
-			'sigmaMutator':1,
+			'sigmaMutator':newSigmaMutator,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
 					'type':random.choice(['p','t']),
-					'ytime':random.uniform(high=10,low=1),
-					'grtime':random.uniform(high=50,low=10)
+					'ytime':random.uniform(high=args["yellow_max"],low=args["yellow_min"]),
+					'grtime':random.uniform(high=args["green_max"],low=args["green_min"])
 					
 				}
 				for _ in range(junctionNumber)
@@ -463,7 +471,25 @@ def cross(random, mom, dad, args):
 			offsprings.append(offspring)
 			
 	return offsprings
-
+	
+class TJTBounder(object):    
+    def __call__(self, candidate, args):
+		print("BOUND")
+		print(candidate)
+		'''
+		for junction in candidate["scenario"]
+			if( junction["ytime"] < args.y_min ):
+				junction["ytime"] = args.y_min
+			if( junction["ytime"] > args.y_max ):
+				junction["ytime"] = args.y_max
+			if( junction["grtime"] < args.gr_min ):
+				junction["grtime"] = args.gr_min
+			if( junction["grtime"] > args.gr_max ):
+				junction["grtime"] = args.gr_max
+		'''
+		return candidate
+		
+		
 if __name__ ==  "__main__":
 	if recreateScenario:
 		dprint("[ Regenerating scenario files... ]")
@@ -479,6 +505,10 @@ if __name__ ==  "__main__":
 	margs["pop_size"] = args.pop_size
 	margs["num_vars"] = 2	
 	margs["tournament_size"] = 2	
+	margs["yellow_min"] = args.yellow_min		
+	margs["yellow_max"] = args.yellow_max		
+	margs["green_min"] = args.green_min		
+	margs["green_max"] = args.green_max
 	
 	res = run(
 		NumpyRandomWrapper(),

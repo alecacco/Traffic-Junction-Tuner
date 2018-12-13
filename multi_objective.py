@@ -25,7 +25,7 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
         #                      variators.gaussian_mutation]
         pass
     else :
-        algorithm.variator = variator
+        algorithm.variator = problem.variator
 
     kwargs["num_selected"]=kwargs["pop_size"]
     if use_bounder :
