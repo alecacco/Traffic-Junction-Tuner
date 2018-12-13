@@ -68,7 +68,6 @@ sumoProcess = None
 
 #other parameters
 recreateScenario = args.recreate==1
-gen = 0
 ind = 0
 junctionNumber = 998
 
@@ -256,8 +255,8 @@ def generate_traffic_light(indexes):
 	for c in connectionsToAppend:
 		scenario['tll'].getroot().append(c)
 
-	write_xml(scenario['tll'].getroot(), folder+"/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario+".tll.xml")
-	write_xml(scenario['nod'].getroot(), folder+"/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario+".nod.xml")
+	write_xml(scenario['tll'].getroot(), folder+"/ind" + str(ind) + "_" + sumoScenario+".tll.xml")
+	write_xml(scenario['nod'].getroot(), folder+"/ind" + str(ind) + "_" + sumoScenario+".nod.xml")
 
 class TJBenchmark(benchmarks.Benchmark):
 
@@ -265,21 +264,19 @@ class TJBenchmark(benchmarks.Benchmark):
 	
 	def evaluatorator(self,objective):
 		def evaluate(self,candidates,args):
-			global gen
 			global ind
 			#ind = 0
 			#generate and execute_scenario
 			for candidate in candidates:
 				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
-					dprint("[ evaluating - gen:"+str(gen)+" ind:"+str(ind)+" ]")
-					candidate['gen'] = gen
+					dprint("[ evaluating - ind:"+str(ind)+" ]")
 					candidate['ind'] = ind
 
 					generate_traffic_light(candidate['scenario'])
 
 					generate_scenario(
-						node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
-						tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
+						node = folder + "/ind" + str(ind) + "_" + sumoScenario,
+						tllogic = folder + "/ind" + sumoScenario
 					)
 					sim_result = execute_scenario()
 					TJBenchmark.results_storage[pickle.dumps(candidate)] = {}
@@ -308,11 +305,10 @@ class TJBenchmark(benchmarks.Benchmark):
 		clean_scenario()
 
 	def generator(self, random, args):
-		dprint("[ ENTERING GENERATOR ]")
+		dprint("[ generating initial population ]")
 		#return [random.uniform(-5.0, 5.0) for _ in range(self.dimensions)]
 		global ind
 		new_ind = {
-			'gen':0,
 			'ind':ind,
 			'sigmaMutator':1,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
@@ -336,9 +332,9 @@ class TJBenchmark(benchmarks.Benchmark):
 		
 @mutator
 def mutate(random, candidate, args):
-	dprint("[ ENTERING MUTATE ]")
+	dprint("[ entering mutate ]")
 	if(args["mutationRate"] >= random.uniform(0,1)):
-		dprint("[ MUTATE ]")
+		dprint("[ \t->mutation happened ]")
 		sigmaMutator = candidate['sigmaMutator']
 		candidate['sigmaMutator'] = candidate['sigmaMutator'] * math.exp( (1.0/math.sqrt(junctionNumber)) * random.gauss(0,1) )
 		if(candidate['sigmaMutator']  < 0.01):
@@ -421,13 +417,12 @@ def mutate(random, candidate, args):
 		"""
 @crossover
 def cross(random, mom, dad, args):
-	dprint("[ ENTERING CROSS ]")
+	dprint("[ entering crossover ]")
 	offspringNumber = args["offspring"]
 	crossoverRate = args["crossoverRate"]
 	offsprings =[]
 	#newGen = mom["gen"] + 1
 	offspring = {
-			'gen':-1,#newGen,
 			'ind':-1,
 			'sigmaMutator':1,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
@@ -442,7 +437,7 @@ def cross(random, mom, dad, args):
 		}
 		
 	if(crossoverRate >= random.uniform(0,1)):
-		dprint("[ CROSS ]")
+		dprint("[ ->crossover happened ]")
 		for i in range(offspringNumber):
 			junction = 0
 			for couple in zip(mom['scenario'],dad['scenario']):
