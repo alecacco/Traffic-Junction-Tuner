@@ -111,8 +111,10 @@ def execute_scenario():
 
 def generate_scenario(**kwargs):
 	for part in ["node","edge","connection","type","tllogic","output"]:
-		if part not in kwargs:
+		if not kwargs.has_key(part):
 			kwargs[part] = sumoScenario
+		else:
+			dprint("[ custom file generating scenario ]")
 
 	netconvertLaunch = str("netconvert \
 			--node-files=" + kwargs["node"] + ".nod.xml \
@@ -277,7 +279,7 @@ class TJBenchmark(benchmarks.Benchmark):
 
 					generate_scenario(
 						node = folder + "/ind" + str(ind) + "_" + sumoScenario,
-						tllogic = folder + "/ind" + sumoScenario
+						tllogic = folder + "/ind"  + str(ind) + "_" + sumoScenario
 					)
 					sim_result = execute_scenario()
 					TJBenchmark.results_storage[pickle.dumps(candidate)] = {}
@@ -313,7 +315,7 @@ class TJBenchmark(benchmarks.Benchmark):
 		#return [random.uniform(-5.0, 5.0) for _ in range(self.dimensions)]
 		global ind
 		new_ind = {
-			'ind':ind,
+			'ind':-1,
 			'sigmaMutator':1,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
@@ -325,7 +327,6 @@ class TJBenchmark(benchmarks.Benchmark):
 				for _ in range(junctionNumber)
 			]
 		}
-		ind +=1
 		return new_ind
 
 	def evaluator(self, candidates, args):
