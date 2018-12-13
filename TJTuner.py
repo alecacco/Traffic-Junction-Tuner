@@ -19,6 +19,12 @@ parser.add_argument("-ps","--pop-size", type=int, help="Population size, 5 as de
 parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program before the simulation, in order to manually connect to problematic scenarios via TraCI", default=0)
 parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
 parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
+
+parser.add_argument("-y_min","--yellow_min", type=int, help="Min time for yellow. Default is 1", default = 1)
+parser.add_argument("-y_max","--yellow_max", type=int, help="Max time for yellow. Default is 10", default = 10)
+parser.add_argument("-gr_min","--green_min", type=int, help="Min time for green and red. Default is 1", default = 1)
+parser.add_argument("-gr_max","--green_max", type=int, help="Max time for green and red. Default is 40", default = 40)
+
 args = parser.parse_args()
 
 #custom print function which deletes [ * ] with debug mode disabled
@@ -299,7 +305,7 @@ class TJBenchmark(benchmarks.Benchmark):
 
 	def __init__(self, objectives=["accidents","arrived"]):
 		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))
-		#self.bounder = ?
+		self.bounder = TJTBounder()
 		self.maximize = False
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
 
@@ -433,8 +439,8 @@ def cross(random, mom, dad, args):
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
 					'type':random.choice(['p','t']),
-					'ytime':random.uniform(high=10,low=1),
-					'grtime':random.uniform(high=50,low=10)
+					'ytime':random.uniform(high=args.y_max,low=args.y_min),
+					'grtime':random.uniform(high=args.gr_max,low=args.gr_min)
 					
 				}
 				for _ in range(junctionNumber)
@@ -463,7 +469,23 @@ def cross(random, mom, dad, args):
 			offsprings.append(offspring)
 			
 	return offsprings
-
+	
+class TJTBounder(object):    
+    def __call__(self, candidate, args):
+        
+		for junction in candidate["scenario"]
+			if( junction["ytime"] < args.y_min ):
+				junction["ytime"] = args.y_min
+			if( junction["ytime"] > args.y_max ):
+				junction["ytime"] = args.y_max
+			if( junction["grtime"] < args.gr_min ):
+				junction["grtime"] = args.gr_min
+			if( junction["grtime"] > args.gr_max ):
+				junction["grtime"] = args.gr_max
+		
+        return candidate
+		
+		
 if __name__ ==  "__main__":
 	if recreateScenario:
 		dprint("[ Regenerating scenario files... ]")
@@ -479,6 +501,10 @@ if __name__ ==  "__main__":
 	margs["pop_size"] = args.pop_size
 	margs["num_vars"] = 2	
 	margs["tournament_size"] = 2	
+	margs["y_min"] = args.y_min		
+	margs["y_max"] = args.y_max		
+	margs["gr_min"] = args.gr_min		
+	margs["gr_max"] = args.gr_max
 	
 	res = run(
 		NumpyRandomWrapper(),
