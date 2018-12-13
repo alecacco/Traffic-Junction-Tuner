@@ -31,10 +31,11 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
     if use_bounder :
         kwargs["bounder"]=problem.bounder
 
-    if display and problem.objectives == 2:
+    if True: #display and problem.objectives == 2:
         # don't like inspyred's plot observer, so use our custom one
         algorithm.observer = [plot_utils.multi_objective_plotting_observer,
-                              inspyred_utils.initial_pop_observer]
+                              inspyred_utils.initial_pop_observer,
+                              my_observer]
 
         animator = plot_utils.MultiObjectiveAnimator(
                         kwargs.setdefault("objective_1","Objective 1"),
@@ -43,8 +44,6 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
     else :
         algorithm.observer = inspyred_utils.initial_pop_observer
         animator = None
-
-    algorithm.observer = [my_observer]
 
     final_pop = algorithm.evolve(evaluator=problem.evaluator,
                           maximize=problem.maximize,

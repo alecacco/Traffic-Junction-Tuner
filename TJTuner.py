@@ -268,8 +268,9 @@ class TJBenchmark(benchmarks.Benchmark):
 			#ind = 0
 			#generate and execute_scenario
 			for candidate in candidates:
+				dprint("[ evaluating - ind:"+str(ind)+" ]")
 				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
-					dprint("[ evaluating - ind:"+str(ind)+" ]")
+					dprint("[ need simulation ]")
 					candidate['ind'] = ind
 
 					generate_traffic_light(candidate['scenario'])
@@ -284,7 +285,10 @@ class TJBenchmark(benchmarks.Benchmark):
 						TJBenchmark.results_storage[
 							pickle.dumps(candidate)
 						][str(key)] = value
+						dprint("[ results: %s %d ]" % (key,value))
 					ind += 1
+				else:
+					dprint("[ already simulated ]")
 			#gen += 1
 			return [
 				TJBenchmark.results_storage[
@@ -464,7 +468,7 @@ if __name__ ==  "__main__":
 		dprint("[ Regenerating scenario files... ]")
 		generate_scenario()
 
-	problem = TJBenchmark(objectives=["accidents","teleported"])
+	problem = TJBenchmark(objectives=["teleported","arrived"])
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
 	margs["crossoverRate"] = args.crossover_rate
