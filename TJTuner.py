@@ -45,12 +45,14 @@ import os
 import math
 import pickle
 
+
 from inspyred import benchmarks
 from inspyred_utils import NumpyRandomWrapper
 from multi_objective import run
 from inspyred.ec.emo import Pareto
 from inspyred.ec.variators import mutator
 from inspyred.ec.variators import crossover
+
 
 FNULL = open(os.devnull, 'w')
 
@@ -390,6 +392,10 @@ def mutate(random, candidate, args):
 					junction['grtime'] = grtime
 					
 		candidate['scenario']=junctions
+		
+		
+		bounder = args['_ec'].bounder
+		candidate = bounder(candidate, args)
 	return candidate
 	"""
 	def mutate(random, candidate, args):
@@ -474,19 +480,16 @@ def cross(random, mom, dad, args):
 	
 class TJTBounder(object):    
     def __call__(self, candidate, args):
-		print("BOUND")
-		print(candidate)
-		'''
-		for junction in candidate["scenario"]
-			if( junction["ytime"] < args.y_min ):
-				junction["ytime"] = args.y_min
-			if( junction["ytime"] > args.y_max ):
-				junction["ytime"] = args.y_max
-			if( junction["grtime"] < args.gr_min ):
-				junction["grtime"] = args.gr_min
-			if( junction["grtime"] > args.gr_max ):
-				junction["grtime"] = args.gr_max
-		'''
+		dprint("[ bounder controlling ]")
+		for junction in candidate["scenario"]:
+			if( junction["ytime"] < args["yellow_min"] ):
+				junction["ytime"] = args["yellow_min"]
+			if( junction["ytime"] > args["yellow_max"] ):
+				junction["ytime"] = args["yellow_max"]
+			if( junction["grtime"] < args["green_min"] ):
+				junction["grtime"] = args["green_min"]
+			if( junction["grtime"] > args["green_max"] ):
+				junction["grtime"] = args["green_max"]
 		return candidate
 		
 		
@@ -509,6 +512,7 @@ if __name__ ==  "__main__":
 	margs["yellow_max"] = args.yellow_max		
 	margs["green_min"] = args.green_min		
 	margs["green_max"] = args.green_max
+	margs["bounder"] = TJTBounder()
 	
 	res = run(
 		NumpyRandomWrapper(),
@@ -517,7 +521,7 @@ if __name__ ==  "__main__":
 	)
     
 	dprint(res)
-
+	
 	result_file = open(folder+"/result.pkl", 'wb')
 	pickle.dump(problem.results_storage, result_file)
 	result_file.close()
