@@ -306,7 +306,7 @@ class TJBenchmark(benchmarks.Benchmark):
 		self.maximize = False
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
 
-		#self.variator = [mutator,crossover]
+		self.variator = [mutate,cross]
 		
 		clean_scenario()
 
@@ -320,8 +320,8 @@ class TJBenchmark(benchmarks.Benchmark):
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
 					'type':random.choice(['p','t']),
-					'ytime':random.uniform(high=10,low=1),
-					'grtime':random.uniform(high=50,low=10)
+					'ytime':random.uniform(high=args["yellow_max"],low=args["yellow_min"]),
+					'grtime':random.uniform(high=args["green_max"],low=args["green_min"])
 					
 				}
 				for _ in range(junctionNumber)
@@ -342,6 +342,7 @@ def mutate(random, candidate, args):
 	if(args["mutationRate"] >= random.uniform(0,1)):
 		dprint("[ \t->mutation happened ]")
 		sigmaMutator = candidate['sigmaMutator']
+		print sigmaMutator
 		candidate['sigmaMutator'] = candidate['sigmaMutator'] * math.exp( (1.0/math.sqrt(junctionNumber)) * random.gauss(0,1) )
 		if(candidate['sigmaMutator']  < 0.01):
 			candidate['sigmaMutator']  = 0.01
@@ -355,13 +356,13 @@ def mutate(random, candidate, args):
 				else:
 					ytime = 0
 					while (ytime == 0):
-						ytime = round(junction['ytime'] + random.gauss(0,1))
+						ytime = round(junction['ytime'] + 10*random.gauss(0,1))
 					if(ytime < 0):
 						ytime = -1 * ytime
 					junction['ytime'] = ytime
 					grtime = 0
 					while (grtime == 0):
-						grtime = round(junction['grtime'] + random.gauss(0,1))
+						grtime = round(junction['grtime'] + 10*random.gauss(0,1))
 					if(grtime < 0):
 						grtime = -1 * grtime
 					junction['grtime'] = grtime
@@ -372,13 +373,13 @@ def mutate(random, candidate, args):
 					junction['type'] = 't'
 					ytime = 0
 					while (ytime == 0):
-						ytime = round(junction['ytime'] + random.gauss(0,1))
+						ytime = round(junction['ytime'] + 10*random.gauss(0,1))
 					if(ytime < 0):
 						ytime = -1 * ytime
 					junction['ytime'] = ytime
 					grtime = 0
 					while (grtime == 0):
-						grtime = round(junction['grtime'] + random.gauss(0,1))
+						grtime = round(junction['grtime'] + 10*random.gauss(0,1))
 					if(grtime < 0):
 						grtime = -1 * grtime
 					junction['grtime'] = grtime
@@ -427,15 +428,16 @@ def cross(random, mom, dad, args):
 	offspringNumber = args["offspring"]
 	crossoverRate = args["crossoverRate"]
 	offsprings =[]
+	newSigmaMutator = (mom["sigmaMutator"]+mom["sigmaMutator"])/2
 	#newGen = mom["gen"] + 1
 	offspring = {
 			'ind':-1,
-			'sigmaMutator':1,
+			'sigmaMutator':newSigmaMutator,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
 					'type':random.choice(['p','t']),
-					'ytime':random.uniform(high=args.y_max,low=args.y_min),
-					'grtime':random.uniform(high=args.gr_max,low=args.gr_min)
+					'ytime':random.uniform(high=args["yellow_max"],low=args["yellow_min"]),
+					'grtime':random.uniform(high=args["green_max"],low=args["green_min"])
 					
 				}
 				for _ in range(junctionNumber)
@@ -467,7 +469,9 @@ def cross(random, mom, dad, args):
 	
 class TJTBounder(object):    
     def __call__(self, candidate, args):
-        
+		print("BOUND")
+		print(candidate)
+		'''
 		for junction in candidate["scenario"]
 			if( junction["ytime"] < args.y_min ):
 				junction["ytime"] = args.y_min
@@ -477,8 +481,8 @@ class TJTBounder(object):
 				junction["grtime"] = args.gr_min
 			if( junction["grtime"] > args.gr_max ):
 				junction["grtime"] = args.gr_max
-		
-        return candidate
+		'''
+		return candidate
 		
 		
 if __name__ ==  "__main__":
@@ -496,10 +500,10 @@ if __name__ ==  "__main__":
 	margs["pop_size"] = args.pop_size
 	margs["num_vars"] = 2	
 	margs["tournament_size"] = 2	
-	margs["y_min"] = args.y_min		
-	margs["y_max"] = args.y_max		
-	margs["gr_min"] = args.gr_min		
-	margs["gr_max"] = args.gr_max
+	margs["yellow_min"] = args.yellow_min		
+	margs["yellow_max"] = args.yellow_max		
+	margs["green_min"] = args.green_min		
+	margs["green_max"] = args.green_max
 	
 	res = run(
 		NumpyRandomWrapper(),
