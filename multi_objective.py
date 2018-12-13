@@ -7,6 +7,10 @@ from inspyred.ec import EvolutionaryComputation
 import inspyred_utils
 import plot_utils
 
+def my_observer(population, num_generations, num_evaluations, args):
+  print("++++++ ",num_generations)
+
+
 def run(random, problem, display=False, num_vars=0, use_bounder=True,
         variator=None, **kwargs) :
     """ run NSGA2 on the given problem """
@@ -40,6 +44,8 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
         algorithm.observer = inspyred_utils.initial_pop_observer
         animator = None
 
+    algorithm.observer = [my_observer]
+
     final_pop = algorithm.evolve(evaluator=problem.evaluator,
                           maximize=problem.maximize,
                           initial_pop_storage=initial_pop_storage,
@@ -55,7 +61,7 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
 
     if animator is not None :
         animator.stop()
-
+    
     if display :
         # Plot the parent and the offspring on the fitness landscape
         # (only for 1D or 2D functions)
@@ -76,7 +82,7 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
     '''
     return final_pop#, final_pop_fitnesses
 
-def run_ga(random,problem, display=False, num_vars=0,
+def run_ga(random,problem, display=True, num_vars=0,
            maximize=False, use_bounder=True, **kwargs) :
     """ run a GA on the given problem """
 

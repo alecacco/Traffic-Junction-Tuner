@@ -15,6 +15,10 @@ parser.add_argument("-sd","--step-delay", type=float, help="Delay of each step, 
 parser.add_argument("-mr","--mutation-rate", type=float, help="Rate of mutation. Default is 0.1", default=0.1)
 parser.add_argument("-of","--offspring", type=int, help="Maximun number of offspring. Default is 2", default=2)
 parser.add_argument("-cr","--crossover-rate", type=float, help="Rate of crossover. Default is 0.8", default=0.8)
+parser.add_argument("-ps","--pop-size", type=int, help="Population size, 5 as default", default=5)
+parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program before the simulation, in order to manually connect to problematic scenarios via TraCI", default=0)
+parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
+parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
 args = parser.parse_args()
 
 #custom print function which deletes [ * ] with debug mode disabled
@@ -33,12 +37,16 @@ import time
 import datetime
 import os
 import math
+import pickle
+
 from inspyred import benchmarks
 from inspyred_utils import NumpyRandomWrapper
 from multi_objective import run
 from inspyred.ec.emo import Pareto
 from inspyred.ec.variators import mutator
 from inspyred.ec.variators import crossover
+
+FNULL = open(os.devnull, 'w')
 
 #custom xml writer function
 def write_xml(root,location):
@@ -62,7 +70,7 @@ sumoProcess = None
 recreateScenario = args.recreate==1
 gen = 0
 ind = 0
-junctionNumber = 9
+junctionNumber = 998
 
 #simulations result
 results = []
@@ -72,13 +80,19 @@ os.mkdir(folder)
 
 def execute_scenario():
 	dprint("[ launching simulation... ]")
-        sumoProcess = subprocess32.Popen(sumoLaunch, stdout=subprocess32.PIPE, stderr=subprocess32.PIPE)
+	if args.sumo_output==1:
+		sumoProcess = subprocess32.Popen(sumoLaunch) 
+	else:
+		sumoProcess = subprocess32.Popen(sumoLaunch, stdout=FNULL, stderr=FNULL)
 	time.sleep(1)
+	#while (args.hang==1):
+	#	pass
 	t = traci.connect(port=sumoPort)
 
 	accidents = 0
 	arrived = 0
-	
+	teleported = 0
+
 	stepsLeft = sumoEnd
 	while(stepsLeft>=0):
 		stepsLeft-=1
@@ -87,11 +101,14 @@ def execute_scenario():
 			time.sleep(sumoDelay)
 		accidents += t.simulation.getCollidingVehiclesNumber()
 		arrived += t.simulation.getArrivedNumber()
+		teleported += t.simulation.getStartingTeleportNumber()
+
+	dprint("[ sim results: accidents %d, arrived %d, teleported %d ]"%(accidents,arrived,teleported))
 
 	t.close()
 	sumoProcess.wait()
 	dprint ("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
-	return({"accidents":accidents, "arrived":arrived})
+	return({"accidents":accidents, "arrived":arrived, "teleported":teleported})
 
 def generate_scenario(**kwargs):
 	for part in ["node","edge","connection","type","tllogic","output"]:
@@ -106,7 +123,10 @@ def generate_scenario(**kwargs):
 			--tllogic-files=" + kwargs["tllogic"] + ".tll.xml \
 			--output-file=" + kwargs["output"] + ".net.xml").split()
 
-	netconvertProcess = subprocess32.Popen(netconvertLaunch,stdout=subprocess32.PIPE)
+	if (args.netconvert_output==1):
+		netconvertProcess = subprocess32.Popen(netconvertLaunch)
+	else:
+		netconvertProcess = subprocess32.Popen(netconvertLaunch,stdout=FNULL,stderr=FNULL)
 	netconvertProcess.wait()
 	dprint ("[ netconvert return code: " + str(netconvertProcess.returncode) + " ]")
 
@@ -247,30 +267,31 @@ class TJBenchmark(benchmarks.Benchmark):
 		def evaluate(self,candidates,args):
 			global gen
 			global ind
-                        ind = 0
+			#ind = 0
 			#generate and execute_scenario
 			for candidate in candidates:
-                                dprint("[ evaluating - gen:"+str(gen)+" ind:"+str(ind)+" ]")
-				candidate['gen'] = gen
-				candidate['ind'] = ind
+				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
+					dprint("[ evaluating - gen:"+str(gen)+" ind:"+str(ind)+" ]")
+					candidate['gen'] = gen
+					candidate['ind'] = ind
 
-				generate_traffic_light(candidate['scenario'])
+					generate_traffic_light(candidate['scenario'])
 
-				generate_scenario(
-					node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
-					tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
-				)
-				sim_result = execute_scenario()
-				TJBenchmark.results_storage[str(candidate['gen'])+'_'+str(candidate['ind'])] = {}
-				for key,value in sim_result.items():
-					TJBenchmark.results_storage[
-						str(candidate['gen'])+'_'+str(candidate['ind'])
-					][str(key)] = value
-				ind += 1
-			gen += 1
+					generate_scenario(
+						node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
+						tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
+					)
+					sim_result = execute_scenario()
+					TJBenchmark.results_storage[pickle.dumps(candidate)] = {}
+					for key,value in sim_result.items():
+						TJBenchmark.results_storage[
+							pickle.dumps(candidate)
+						][str(key)] = value
+					ind += 1
+			#gen += 1
 			return [
 				TJBenchmark.results_storage[
-					str(candidate['gen'])+'_'+str(candidate['ind'])
+					pickle.dumps(candidate)
 				][objective]
 				for candidate in candidates
 			]
@@ -280,26 +301,14 @@ class TJBenchmark(benchmarks.Benchmark):
 		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))
 		#self.bounder = ?
 		self.maximize = False
-		#self.evaluators = [cls(dimensions).evaluator for cls in objectives]
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
+
 		#self.variator = [mutator,crossover]
 		
 		clean_scenario()
 
-	'''
-	def evaluate_accidents(self,candidate,args):
-		return results_storage[candidate]['accidents']
-
-	def evaluator_accidents(self, candidates, args):
-		return [evaluate(candidate) for candidate in candidates]
-
-	def evaluate_arrived(self,candidate,args):
-		return results_storage[candidate]['arrived']
-
-	def evaluator_arrived(self, candidates, args):
-		return [evaluate(candidate) for candidate in candidates]
-	'''
 	def generator(self, random, args):
+		dprint("[ ENTERING GENERATOR ]")
 		#return [random.uniform(-5.0, 5.0) for _ in range(self.dimensions)]
 		global ind
 		new_ind = {
@@ -321,13 +330,15 @@ class TJBenchmark(benchmarks.Benchmark):
 
 	def evaluator(self, candidates, args):
 		fitness = [evaluator(self,candidates, args) for evaluator in self.evaluators]
+		dprint("[ evaluation results: " + str(fitness) + " ]")
 		return map(Pareto, zip(*fitness))
 		
 		
 @mutator
 def mutate(random, candidate, args):
-	dprint(" [ MUTATE ]")
+	dprint("[ ENTERING MUTATE ]")
 	if(args["mutationRate"] >= random.uniform(0,1)):
+		dprint("[ MUTATE ]")
 		sigmaMutator = candidate['sigmaMutator']
 		candidate['sigmaMutator'] = candidate['sigmaMutator'] * math.exp( (1.0/math.sqrt(junctionNumber)) * random.gauss(0,1) )
 		if(candidate['sigmaMutator']  < 0.01):
@@ -340,11 +351,15 @@ def mutate(random, candidate, args):
 				if(sigmaMutator*random.gauss(0,1) > 1):
 						junction['type']  = 'p'
 				else:
-					ytime = round(junction['ytime'] + sigmaMutator*random.gauss(0,1))
+					ytime = 0
+					while (ytime == 0):
+						ytime = round(junction['ytime'] + random.gauss(0,1))
 					if(ytime < 0):
 						ytime = -1 * ytime
 					junction['ytime'] = ytime
-					grtime = round(junction['grtime'] + random.gauss(0,1))
+					grtime = 0
+					while (grtime == 0):
+						grtime = round(junction['grtime'] + random.gauss(0,1))
 					if(grtime < 0):
 						grtime = -1 * grtime
 					junction['grtime'] = grtime
@@ -353,11 +368,15 @@ def mutate(random, candidate, args):
 			
 				if(sigmaMutator * random.gauss(0,1) > 1):
 					junction['type'] = 't'
-					ytime = round(junction['ytime'] + random.gauss(0,1))
+					ytime = 0
+					while (ytime == 0):
+						ytime = round(junction['ytime'] + random.gauss(0,1))
 					if(ytime < 0):
 						ytime = -1 * ytime
 					junction['ytime'] = ytime
-					grtime = round(junction['grtime'] + random.gauss(0,1))
+					grtime = 0
+					while (grtime == 0):
+						grtime = round(junction['grtime'] + random.gauss(0,1))
 					if(grtime < 0):
 						grtime = -1 * grtime
 					junction['grtime'] = grtime
@@ -402,16 +421,14 @@ def mutate(random, candidate, args):
 		"""
 @crossover
 def cross(random, mom, dad, args):
-
-	dprint(" [ CROSS ]")
-	
+	dprint("[ ENTERING CROSS ]")
 	offspringNumber = args["offspring"]
 	crossoverRate = args["crossoverRate"]
 	offsprings =[]
-	newGen = mom["gen"] + 1
+	#newGen = mom["gen"] + 1
 	offspring = {
-			'gen':newGen,
-			'ind':0,
+			'gen':-1,#newGen,
+			'ind':-1,
 			'sigmaMutator':1,
 			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
 				{
@@ -425,6 +442,7 @@ def cross(random, mom, dad, args):
 		}
 		
 	if(crossoverRate >= random.uniform(0,1)):
+		dprint("[ CROSS ]")
 		for i in range(offspringNumber):
 			junction = 0
 			for couple in zip(mom['scenario'],dad['scenario']):
@@ -451,47 +469,25 @@ if __name__ ==  "__main__":
 		dprint("[ Regenerating scenario files... ]")
 		generate_scenario()
 
-	problem = TJBenchmark()
+	problem = TJBenchmark(objectives=["accidents","teleported"])
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
 	margs["crossoverRate"] = args.crossover_rate
 	margs["offspring"] = args.offspring
 	margs["variator"] = [cross,mutate]
+	margs["max_generations"] = args.generations
+	margs["pop_size"] = args.pop_size
+	margs["num_vars"] = 2	
+	margs["tournament_size"] = 2	
 	
-	
-	res = run(NumpyRandomWrapper(),problem, pop_size=2, max_generations=args.generations, **margs )
-        print res
-	'''
-	#load scenario, convert all junctions to "priority" and saving as gen0 scenario in $folder
-	clean_scenario()
+	res = run(
+		NumpyRandomWrapper(),
+		problem, 
+		**margs 
+	)
+    
+	dprint(res)
 
-	while gen < args.generations:
-		if gen>0:
-			generate_scenario(
-				node = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario,
-				tllogic = folder + "/gen" + str(gen) + "_" + str(ind) + "_" + sumoScenario
-			)
-		# execute scenario
-		sim_result = execute_scenario()
-		results.append(sim_result)
-		# check output
-		# decide new parameters
-		# edit scenario
-		generate_traffic_light([
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'t','ytime':3,'grtime':10}, #THIS FFS is the main junction with a meaningful place to put a traffic light
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'p','ytime':3,'grtime':10},
-				{'type':'p','ytime':3,'grtime':10},
-			])
-
-		gen += 1
-
-
-	print results
-	'''
-
+	result_file = open(folder+"/result.pkl", 'wb')
+	pickle.dump(problem.results_storage, result_file)
+	result_file.close()
