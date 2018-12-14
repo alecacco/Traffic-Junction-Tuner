@@ -273,6 +273,14 @@ class TJBenchmark(benchmarks.Benchmark):
 	results_storage = {}
 	
 	def evaluatorator(self,objective):
+		sign = None
+		if objective[0]=='-':
+			sign = -1
+		else:
+			sign = +1
+
+		objective= objective[1:]
+
 		def evaluate(self,candidates,args):
 			global ind
 			#ind = 0
@@ -299,7 +307,11 @@ class TJBenchmark(benchmarks.Benchmark):
 					ind += 1
 				else:
 					dprint("[ already simulated ]")
-			#gen += 1
+
+				TJBenchmark.results_storage[
+					pickle.dumps(candidate)
+				][objective] *= sign
+
 			return [
 				TJBenchmark.results_storage[
 					pickle.dumps(candidate)
@@ -311,7 +323,7 @@ class TJBenchmark(benchmarks.Benchmark):
 	def __init__(self, objectives=["accidents","arrived"]):
 		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))
 		self.bounder = TJTBounder()
-		self.maximize = False
+		self.maximize = True
 		self.evaluators = [self.evaluatorator(objective) for objective in objectives]
 
 		self.variator = [mutate,cross]
@@ -498,7 +510,7 @@ if __name__ ==  "__main__":
 		dprint("[ Regenerating scenario files... ]")
 		generate_scenario()
 
-	problem = TJBenchmark(objectives=["teleported","arrived"])
+	problem = TJBenchmark(objectives=["-teleported","+arrived"])
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
 	margs["crossoverRate"] = args.crossover_rate
