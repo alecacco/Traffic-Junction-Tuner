@@ -92,8 +92,8 @@ def execute_scenario():
 	else:
 		sumoProcess = subprocess32.Popen(sumoLaunch, stdout=FNULL, stderr=FNULL)
 	time.sleep(1)
-	#while (args.hang==1):
-	#	pass
+	while (args.hang==1):
+		pass
 	t = traci.connect(port=sumoPort)
 
 	accidents = 0
@@ -305,12 +305,12 @@ class TJBenchmark(benchmarks.Benchmark):
 						][str(key)] = value
 						dprint("[ results: %s %d ]" % (key,value))
 					ind += 1
+					TJBenchmark.results_storage[
+						pickle.dumps(candidate)
+					][objective] *= sign
 				else:
 					dprint("[ already simulated ]")
 
-				TJBenchmark.results_storage[
-					pickle.dumps(candidate)
-				][objective] *= sign
 
 			return [
 				TJBenchmark.results_storage[
