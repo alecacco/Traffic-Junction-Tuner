@@ -8,13 +8,9 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 
 debug = True
-scenario = "trento"
-sumoPort = 27910
-sumoEnd = 3600
-sumoDelay = 1
+hang = False
 
 FNULL = open(os.devnull, 'w')
-sumoLaunch = str("sumo-gui -c "+ scenario +".sumo.cfg").split(" ")
 
 #custom print function which deletes [ * ] with debug mode disabled
 def dprint(s):
@@ -33,6 +29,9 @@ def execute_scenario(sumoLaunch,port,end,delay,dataCollection,debug):
 		sumoProcess = subprocess32.Popen(sumoLaunch) 
 	else:
 		sumoProcess = subprocess32.Popen(sumoLaunch, stdout=FNULL, stderr=FNULL)
+
+	while (hang==1):
+		pass
 
 	time.sleep(2)
 	t = traci.connect(port=port)
