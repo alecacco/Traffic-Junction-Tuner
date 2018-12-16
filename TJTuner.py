@@ -42,9 +42,10 @@ import subprocess32
 import time
 import datetime
 import os
+import sys
 import math
 import pickle
-
+import numpy
 
 from inspyred import benchmarks
 from inspyred_utils import NumpyRandomWrapper
@@ -84,6 +85,9 @@ results = []
 folder = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
 os.mkdir(folder)
 
+with open(folder+"/launch", "w") as lauch_save:
+	launch_string = str(sys.argv)
+	lauch_save.write("Launched with "+launch_string)
 
 def execute_scenario():
 	dprint("[ launching simulation... ]")
@@ -99,6 +103,7 @@ def execute_scenario():
 	accidents = 0
 	arrived = 0
 	teleported = 0
+	agv_speeds = []
 
 	stepsLeft = sumoEnd
 	while(stepsLeft>=0):
@@ -110,12 +115,21 @@ def execute_scenario():
 		arrived += t.simulation.getArrivedNumber()
 		teleported += t.simulation.getStartingTeleportNumber()
 
-	dprint("[ sim results: accidents %d, arrived %d, teleported %d ]"%(accidents,arrived,teleported))
+		vehicleIDs = t.vehicle.getIDList()
+		if len(vehicleIDs)>0:
+			agv_speeds.append(numpy.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
+
+	dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,numpy.mean(agv_speeds)))
 
 	t.close()
 	sumoProcess.wait()
 	dprint ("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
-	return({"accidents":accidents, "arrived":arrived, "teleported":teleported})
+	return({
+		"accidents":accidents, 
+		"arrived":arrived, 
+		"teleported":teleported, 
+		"agv_speed":numpy.mean(agv_speeds)
+	})
 
 def generate_scenario(**kwargs):
 	for part in ["node","edge","connection","type","tllogic","output"]:
@@ -305,17 +319,18 @@ class TJBenchmark(benchmarks.Benchmark):
 						][str(key)] = value
 						dprint("[ results: %s %d ]" % (key,value))
 					ind += 1
+					'''
 					TJBenchmark.results_storage[
 						pickle.dumps(candidate)
 					][objective] *= sign
+					'''
 				else:
 					dprint("[ already simulated ]")
-
 
 			return [
 				TJBenchmark.results_storage[
 					pickle.dumps(candidate)
-				][objective]
+				][objective]*sign
 				for candidate in candidates
 			]
 		return evaluate
@@ -361,7 +376,6 @@ def mutate(random, candidate, args):
 	if(args["mutationRate"] >= random.uniform(0,1)):
 		dprint("[ \t->mutation happened ]")
 		sigmaMutator = candidate['sigmaMutator']
-		print sigmaMutator
 		candidate['sigmaMutator'] = candidate['sigmaMutator'] * math.exp( (1.0/math.sqrt(junctionNumber)) * random.gauss(0,1) )
 		if(candidate['sigmaMutator']  < 0.01):
 			candidate['sigmaMutator']  = 0.01
@@ -468,7 +482,7 @@ def cross(random, mom, dad, args):
 		}
 		
 	if(crossoverRate >= random.uniform(0,1)):
-		dprint("[ ->crossover happened ]")
+		dprint("[ \t->crossover happened ]")
 		for i in range(offspringNumber):
 			junction = 0
 			for couple in zip(mom['scenario'],dad['scenario']):
@@ -510,7 +524,7 @@ if __name__ ==  "__main__":
 		dprint("[ Regenerating scenario files... ]")
 		generate_scenario()
 
-	problem = TJBenchmark(objectives=["-teleported","+arrived"])
+	problem = TJBenchmark(objectives=["+agv_speed","+arrived","-teleported","-accidents"])
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
 	margs["crossoverRate"] = args.crossover_rate
@@ -525,15 +539,17 @@ if __name__ ==  "__main__":
 	margs["green_min"] = args.green_min		
 	margs["green_max"] = args.green_max
 	margs["bounder"] = TJTBounder()
-	
+	margs["folder"] = folder
+
 	res = run(
 		NumpyRandomWrapper(),
-		problem, 
+		problem,
+		display=False, 
 		**margs 
 	)
     
 	dprint(res)
 	
-	result_file = open(folder+"/result.pkl", 'wb')
+	result_file = open(folder+"/results_storage.pkl", 'wb')
 	pickle.dump(problem.results_storage, result_file)
 	result_file.close()
