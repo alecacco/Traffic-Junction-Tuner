@@ -83,7 +83,7 @@ def print_table(table):
 	for ind in populations[table]:
 		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))])
 	rows = [[i]+rows[i] for i in range(len(rows))]
-	rows = [["gen"]+titles]+rows
+	rows = [["ind"]+titles]+rows
 	for r_i in range(len(rows)):
 		row_str = ""
 		for e_i in range(len(rows[r_i])):
