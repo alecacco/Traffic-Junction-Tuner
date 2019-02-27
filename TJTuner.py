@@ -8,11 +8,12 @@ parser = argparse.ArgumentParser(description="Traffic Junction Optimizer.")
 parser.add_argument("-g","--generations", type=int, help="number of generation for the genetic algorithm", default=1)
 parser.add_argument("-l","--launch", type=str, help="Sumo executable to use. E.G. \"sumo\" or \"sumo-gui\". Default is \"sumo\"", default="sumo")
 parser.add_argument("-p","--port", type=int, help="TraCI connection port to Sumo. Default is 27910", default=27910)
-parser.add_argument("-s","--scenario", type=str, help="Scenario prefix - uses standard Scenario file extension", default="semaforoS")
+parser.add_argument("-s","--scenario", type=str, help="Scenario prefix - uses standard Scenario file extension", default="trento")
 parser.add_argument("-d","--debug", type=int, help="Set to 1 to see debug output. Default is 1", default=0)
 parser.add_argument("-a","--autostart", type=int, help="Set to 1 to start the simulation automatically. Default is 1", default=0)
 parser.add_argument("-e","--end", type=int, help="Simulation duration in step number. Default is 3600.", default=3600)
 parser.add_argument("-sd","--step-delay", type=float, help="Delay of each step, useful for GUI demostrations. Default is 0", default=0)
+parser.add_argument("-ss","--step-size", type=float, help="Simulation step size. Default is 0.1", default=0.01)
 parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program before the simulation, in order to manually connect to problematic scenarios via TraCI", default=0)
 parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
 parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
@@ -65,7 +66,13 @@ sumoAutoStart=""
 if args.autostart==1:
 	sumoAutoStart=" --start"
 sumoScenario = args.scenario
-sumoLaunch = str(args.launch+" -c "+ args.scenario +".sumo.cfg"+sumoAutoStart+" -Q").split(" ")
+sumoLaunch = str(args.launch
+	+" -c " + args.scenario +".sumo.cfg" 
+	+ sumoAutoStart
+	+" -Q" 
+	+ " --step-length " + ("%.2f" % args.step_size) 
+	+ " --remote-port " + str(args.port)
+).split(" ")
 sumoPort = args.port
 sumoEnd = args.end
 sumoDelay = args.step_delay
