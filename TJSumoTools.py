@@ -34,7 +34,7 @@ def execute_scenario(sumoLaunch,port,end,delay,dataCollection,debug):
 		pass
 
 	time.sleep(2)
-	t = traci.init(port=port) #connect(port=port)
+	t = traci.connect(port=port)
 
 	accidents = 0
 	arrived = 0
