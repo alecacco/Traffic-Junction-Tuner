@@ -235,7 +235,6 @@ def generate_scenarios(parametersList, jobs,**kwargs):
 	processes = {}
 	while done < len(parametersList) or currentJobs>0:
 		while currentJobs<jobs and len(todo_queue)>0:
-			print("adding one NETCONVERT process")
 			parameterSet = todo_queue.pop()
 			p = generate_scenario(parameterSet["sumoScenario"],parameterSet["netconvert_output"],wait=False,**parameterSet["kwargs"])
 			processes[p.pid]=p
@@ -245,7 +244,6 @@ def generate_scenarios(parametersList, jobs,**kwargs):
 			p.poll()
 
 			if p.returncode != None:
-				print("found an ended NETCONVERT process")
 				done+=1
 				currentJobs-=1
 				dprint("[ netconvert for "+ str(pid)+" return code: " + str(p.returncode) + " ]")
@@ -273,9 +271,7 @@ def execute_scenarios(parametersList, jobs):
 	processes = {}
 	simid_inc = 0
 	while done < len(parametersList) or currentJobs>0:
-		#print("done("+str(len(parametersList))+"): "+str(done)+" & currentJobs: "+str(currentJobs))
 		while currentJobs<jobs and len(todo_queue)>0:
-			print("adding one SUMO process")
 			parameterSet = todo_queue.pop()
 			sim = execute_scenario(
 				parameterSet["launch"],
@@ -311,7 +307,6 @@ def execute_scenarios(parametersList, jobs):
 		for simid, procinfo in processes.iteritems():
 			procinfo["process"].poll()
 			if procinfo["process"].returncode != None:
-				print("found an ended SUMO process")
 				done+=1
 				currentJobs-=1
 				dprint("[ simulation "+ str(simid)+" return code: " + str(procinfo["process"].returncode) + " ]")
@@ -322,8 +317,6 @@ def execute_scenarios(parametersList, jobs):
 
 		time.sleep(pollingTime)
 
-	#simids = results_d.keys()
-	#simids.sort()
 	simids = list(range(simid_inc))
 	for res in simids:
 		results.append(results_d[res])
