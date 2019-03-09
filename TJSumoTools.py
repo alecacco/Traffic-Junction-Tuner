@@ -6,14 +6,19 @@ import time
 import numpy
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
+from threading import RLock
+from threading import Thread
+
 
 debug = True
 hang = False
+pollingTime = 1
 
 FNULL = open(os.devnull, 'w')
 
 #custom print function which deletes [ * ] with debug mode disabled
 def dprint(s):
+	s=str(s)
 	if debug or not (s.split()[0]=="[" and s.split()[-1]=="]"):
 		print(s)
 
@@ -23,8 +28,21 @@ def write_xml(root,location):
 	with open(location,"w") as f:
 		f.write(prettyttl.encode("utf8"))
 
-def execute_scenario(sumoLaunch,port,end,delay,dataCollection,debug):
+def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,dataCollection,debug,wait=True):
 	dprint("[ launching simulation... ]")
+	sumoAutoStart=""
+	if autostart==True:
+		sumoAutoStart=" --start"
+	sumoLaunch = str(launch
+		+" -n " + scenario +".net.xml"
+		+" -r " + routes + ".rou.xml" 
+		+ sumoAutoStart
+		+" -Q" 
+		+ " --step-length " + ("%.2f" % step_size) 
+		+ " --remote-port " + str(port)
+		#TODO PSEUDO-RANDOM SEED
+	).split(" ")
+
 	if (debug):
 		sumoProcess = subprocess32.Popen(sumoLaunch) 
 	else:
@@ -36,42 +54,47 @@ def execute_scenario(sumoLaunch,port,end,delay,dataCollection,debug):
 	time.sleep(2)
 	t = traci.connect(port=port)
 
-	accidents = 0
-	arrived = 0
-	teleported = 0
-	agv_speeds = []
+	if wait==True:
+		#Original single simulation code
+		accidents = 0
+		arrived = 0
+		teleported = 0
+		agv_speeds = []
 
-	stepsLeft = end
-	while(stepsLeft>=0):
-		stepsLeft-=1
-		t.simulationStep()
-		if delay > 0:
-			time.sleep(delay)
+		stepsLeft = end
+		while(stepsLeft>=0):
+			stepsLeft-=1
+			t.simulationStep()
+			if delay > 0:
+				time.sleep(delay)
+			if dataCollection:
+				accidents += t.simulation.getCollidingVehiclesNumber()
+				arrived += t.simulation.getArrivedNumber()
+				teleported += t.simulation.getStartingTeleportNumber()
+
+				vehicleIDs = t.vehicle.getIDList()
+				if len(vehicleIDs)>0:
+					agv_speeds.append(numpy.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
+
 		if dataCollection:
-			accidents += t.simulation.getCollidingVehiclesNumber()
-			arrived += t.simulation.getArrivedNumber()
-			teleported += t.simulation.getStartingTeleportNumber()
-
-			vehicleIDs = t.vehicle.getIDList()
-			if len(vehicleIDs)>0:
-				agv_speeds.append(numpy.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
-
-	if dataCollection:
-		dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,numpy.mean(agv_speeds)))
+			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,numpy.mean(agv_speeds)))
+		else:
+			dprint("[ simulation completed with no data collection ]")
+		
+		t.close()
+		sumoProcess.wait()
+		dprint("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
+		return({
+			"accidents":accidents, 
+			"arrived":arrived, 
+			"teleported":teleported, 
+			"agv_speed":numpy.mean(agv_speeds)
+		})	
 	else:
-		dprint("[ simulation completed with no data collection ]")
-	
-	t.close()
-	sumoProcess.wait()
-	dprint("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
-	return({
-		"accidents":accidents, 
-		"arrived":arrived, 
-		"teleported":teleported, 
-		"agv_speed":numpy.mean(agv_speeds)
-	})
+		dprint("[ simulation launched and running ]")
+		return {"process":sumoProcess,"traci":t}
 
-def generate_scenario(sumoScenario,debug,**kwargs):
+def generate_scenario(sumoScenario,debug,wait=True,**kwargs):
 	for part in ["node","edge","connection","type","tllogic","output"]:
 		if not kwargs.has_key(part):
 			kwargs[part] = sumoScenario
@@ -90,8 +113,12 @@ def generate_scenario(sumoScenario,debug,**kwargs):
 		netconvertProcess = subprocess32.Popen(netconvertLaunch)
 	else:
 		netconvertProcess = subprocess32.Popen(netconvertLaunch,stdout=FNULL,stderr=FNULL)
-	netconvertProcess.wait()
-	dprint("[ netconvert return code: " + str(netconvertProcess.returncode) + " ]")
+	if wait==True:
+		netconvertProcess.wait()
+		dprint("[ netconvert return code: " + str(netconvertProcess.returncode) + " ]")
+	else: 
+		return netconvertProcess
+		dprint("[ netconvert process running ]")
 
 def tl_combinations(connectionSets):
 	res = []
@@ -122,7 +149,6 @@ def tl_combinations(connectionSets):
 
 
 	return res
-
 
 def generate_traffic_light(indexes,sumoScenario,name):
 	scenario = {
@@ -196,3 +222,158 @@ def generate_traffic_light(indexes,sumoScenario,name):
 
 	write_xml(scenario['tll'].getroot(), name +".tll.xml")
 	write_xml(scenario['nod'].getroot(), name +".nod.xml")
+
+#TODO: no multithreading for now on traffic light generation!
+def generate_traffic_lights(parametersList, jobs):
+	for parameterSet in parametersList:
+		generate_traffic_light(parameterSet['scenario'],parameterSet['sumoScenario_orig'],parameterSet['sumoScenario_dest'])
+
+def generate_scenarios(parametersList, jobs,**kwargs):
+	done = 0
+	todo_queue=parametersList+[]
+	currentJobs = 0
+	processes = {}
+	while done < len(parametersList) or currentJobs>0:
+		while currentJobs<jobs and len(todo_queue)>0:
+			print("adding one NETCONVERT process")
+			parameterSet = todo_queue.pop()
+			p = generate_scenario(parameterSet["sumoScenario"],parameterSet["netconvert_output"],wait=False,**parameterSet["kwargs"])
+			processes[p.pid]=p
+			currentJobs+=1
+		pidtodelete=[]
+		for pid, p in processes.iteritems():
+			p.poll()
+
+			if p.returncode != None:
+				print("found an ended NETCONVERT process")
+				done+=1
+				currentJobs-=1
+				dprint("[ netconvert for "+ str(pid)+" return code: " + str(p.returncode) + " ]")
+				pidtodelete.append(pid)
+		for pid in pidtodelete:
+			del(processes[pid])
+
+def execute_scenarios(parametersList, jobs):
+
+	lock = RLock()
+	results_d = {}
+	results = []
+	'''
+		accidents = 0
+		arrived = 0
+		teleported = 0
+		agv_speeds = []
+			\->avg_speed = ##
+	'''
+
+	done = 0
+	todo_queue=parametersList+[]
+	todo_queue.reverse()
+	currentJobs = 0
+	processes = {}
+	simid_inc = 0
+	while done < len(parametersList) or currentJobs>0:
+		#print("done("+str(len(parametersList))+"): "+str(done)+" & currentJobs: "+str(currentJobs))
+		while currentJobs<jobs and len(todo_queue)>0:
+			print("adding one SUMO process")
+			parameterSet = todo_queue.pop()
+			sim = execute_scenario(
+				parameterSet["launch"],
+				parameterSet["sumoScenario"],
+				parameterSet["sumoRoutes"],
+				parameterSet["sumoStepSize"],
+				parameterSet["sumoPort"]+simid_inc,
+				parameterSet["sumoAutoStart"],
+				parameterSet["sumoEnd"],
+				parameterSet["sumoDelay"],
+				parameterSet["dataCollection"],
+				parameterSet["sumoOutput"],
+				wait=False
+			)
+			processes[simid_inc]={
+				"process":sim["process"],
+				"traci":sim["traci"],
+				"stepsLeft": parameterSet['sumoEnd'],
+				"sumoDelay": parameterSet["sumoDelay"],
+				"dataCollection": parameterSet["dataCollection"],				
+				"accidents": 0,
+				"arrived": 0,
+				"teleported": 0,
+				"agv_speeds": []	
+			}
+			thread = Thread(target = advance_simulation, args = (simid_inc, processes[simid_inc],results_d,lock))
+			thread.start()
+
+			currentJobs+=1
+			simid_inc+=1
+
+		simidtodelete=[]
+		for simid, procinfo in processes.iteritems():
+			procinfo["process"].poll()
+			if procinfo["process"].returncode != None:
+				print("found an ended SUMO process")
+				done+=1
+				currentJobs-=1
+				dprint("[ simulation "+ str(simid)+" return code: " + str(procinfo["process"].returncode) + " ]")
+				simidtodelete.append(simid)
+
+		for simidtd in simidtodelete:
+			del(processes[simidtd])	
+
+		time.sleep(pollingTime)
+
+	#simids = results_d.keys()
+	#simids.sort()
+	simids = list(range(simid_inc))
+	for res in simids:
+		results.append(results_d[res])
+	'''
+	#TRIVIAL SINGLE-SIMULATION-AT-A-TIME SOLUTION
+	for parameterSet in parametersList:
+		print("EXECUTING SCENARIO" + parameterSet["sumoScenario"]+" PORT "+str(parameterSet["sumoPort"]))
+		results.append(execute_scenario(
+			parameterSet["launch"],
+			parameterSet["sumoScenario"],
+			parameterSet["sumoRoutes"],
+			parameterSet["sumoStepSize"],
+			parameterSet["sumoPort"],
+			parameterSet["sumoAutoStart"],
+			parameterSet["sumoEnd"],
+			parameterSet["sumoDelay"],
+			parameterSet["dataCollection"],
+			parameterSet["sumoOutput"],
+		))
+	'''
+
+	print("dict: " + str(len(results_d)))
+	print("list: " + str(len(results)))
+	return results
+
+def advance_simulation(simid, procinfo, results_d, lock):
+	#data collection via traci
+	while(procinfo["stepsLeft"]>=0):
+		procinfo["stepsLeft"]-=1
+		procinfo["traci"].simulationStep()
+		if procinfo["sumoDelay"] > 0:
+			time.sleep(procinfo["sumoDelay"])
+		if procinfo["dataCollection"]:
+			procinfo["accidents"] += procinfo["traci"].simulation.getCollidingVehiclesNumber()
+			procinfo["arrived"] += procinfo["traci"].simulation.getArrivedNumber()
+			procinfo["teleported"] += procinfo["traci"].simulation.getStartingTeleportNumber()
+
+			vehicleIDs = procinfo["traci"].vehicle.getIDList()
+			if len(vehicleIDs)>0:
+				procinfo["agv_speeds"].append(numpy.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+	
+	procinfo["traci"].close()
+
+	lock.acquire()
+	try:
+		results_d[simid]={
+			"accidents":procinfo["accidents"], 
+			"arrived":procinfo["arrived"], 
+			"teleported":procinfo["teleported"], 
+			"agv_speed":numpy.mean(procinfo["agv_speeds"])
+		}						
+	finally:
+		lock.release()

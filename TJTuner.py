@@ -17,6 +17,9 @@ parser.add_argument("-ss","--step-size", type=float, help="Simulation step size.
 parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program before the simulation, in order to manually connect to problematic scenarios via TraCI", default=0)
 parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
 parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
+parser.add_argument("-j","--jobs", type=int, help="Simulation parallelization. Allow for individuals to be simulated simultaneously. Default is 1", default = 1)
+parser.add_argument("-rr","--random-routes", type=int, help="Randomize routes for each simulation. Default is 0 (no randomization, one simulation per individual), values higher than 0 implies multiple repetitions", default = 0)
+#TODO add seeds and randomization for bot sumo simulation and netconvert route generation, also manage the seed loading in TJAnalyzer to repeat the exact individual
 
 #Genetic algorithm paramenters
 parser.add_argument("-mr","--mutation-rate", type=float, help="Rate of mutation. Default is 0.1", default=0.1)
@@ -62,20 +65,14 @@ TJS.debug = args.debug == 1	#enable debug print
 TJS.hang = args.hang == 1	#hang the simulation for external traci connection
 
 #SUMO/TraCI parameters
-sumoAutoStart=""
-if args.autostart==1:
-	sumoAutoStart=" --start"
+sumoAutoStart=args.autostart
 sumoScenario = args.scenario
-sumoLaunch = str(args.launch
-	+" -c " + args.scenario +".sumo.cfg" 
-	+ sumoAutoStart
-	+" -Q" 
-	+ " --step-length " + ("%.2f" % args.step_size) 
-	+ " --remote-port " + str(args.port)
-).split(" ")
+sumoLaunch = args.launch
 sumoPort = args.port
 sumoEnd = args.end
 sumoDelay = args.step_delay
+sumoJobs = args.jobs
+sumoStepSize = args.step_size
 
 netconvert_output = args.netconvert_output
 sumo_output = args.sumo_output
@@ -121,42 +118,81 @@ class TJBenchmark(benchmarks.Benchmark):
 			global ind
 			#ind = 0
 			#generate and execute_scenario
+			trafficLights_todo = []
+			scenarios_todo = []
+			simulations_todo = []
+			candidates_todo = []
 			for candidate in candidates:
 				dprint("[ evaluating - ind:"+str(ind)+" ]")
 				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
 					dprint("[ need simulation ]")
 					candidate['ind'] = ind
+					candidates_todo.append(candidate)
 
-					TJS.generate_traffic_light(candidate['scenario'],sumoScenario,folder+"/ind" + str(ind) + "_" + sumoScenario)
+					trafficLights_todo.append({
+						"scenario": candidate['scenario'],
+						"sumoScenario_orig": sumoScenario,
+						"sumoScenario_dest": folder+"/ind" + str(ind) + "_" + sumoScenario
+					})
 
-					TJS.generate_scenario(
-						sumoScenario,
-						netconvert_output==1,
-						node = folder + "/ind" + str(ind) + "_" + sumoScenario,
-						tllogic = folder + "/ind"  + str(ind) + "_" + sumoScenario
-					)
-					sim_result = TJS.execute_scenario(
-						sumoLaunch,
-						sumoPort,
-						sumoEnd,
-						sumoDelay,
-						True,
-						sumo_output==1
-					)
-					TJBenchmark.results_storage[pickle.dumps(candidate)] = {}
-					for key,value in sim_result.items():
-						TJBenchmark.results_storage[
-							pickle.dumps(candidate)
-						][str(key)] = value
-						dprint("[ results: %s %d ]" % (key,value))
+					scenarios_todo.append({
+						"sumoScenario": sumoScenario,
+						"netconvert_output": netconvert_output==1,
+						"kwargs":{
+							"output": folder + "/ind"  + str(ind) + "_" + sumoScenario,
+							"node": folder + "/ind" + str(ind) + "_" + sumoScenario,
+							"tllogic":  folder + "/ind"  + str(ind) + "_" + sumoScenario
+						}
+					})
+
+					simulations_todo.append({
+						"launch":sumoLaunch,
+						"sumoScenario": folder + "/ind"  + str(ind) + "_" + sumoScenario,	
+						"sumoRoutes": "trento_2", #TODO generate random routes and load them here! #folder + "/ind"  + str(ind) + "_" + sumoScenario,	
+						"sumoStepSize": sumoStepSize,
+						"sumoPort": sumoPort,
+						"sumoAutoStart": sumoAutoStart,
+						"sumoEnd": sumoEnd,
+						"sumoDelay": sumoDelay,
+						"dataCollection": True,
+						"sumoOutput": sumo_output==1
+					})
+
 					ind += 1
-					'''
-					TJBenchmark.results_storage[
-						pickle.dumps(candidate)
-					][objective] *= sign
-					'''
+
 				else:
 					dprint("[ already simulated ]")
+
+				'''
+				Old call:
+				TJS.generate_traffic_light(candidate['scenario'],sumoScenario,folder+"/ind" + str(ind) + "_" + sumoScenario)
+				Implementation is not really multithreading atm
+				'''
+				TJS.generate_traffic_lights(trafficLights_todo,sumoJobs)
+
+				'''
+				Old Call:
+				TJS.generate_scenario(
+					sumoScenario,
+					netconvert_output==1,
+					output = folder + "/ind"  + str(ind) + "_" + sumoScenario,
+					node = folder + "/ind" + str(ind) + "_" + sumoScenario,
+					tllogic = folder + "/ind"  + str(ind) + "_" + sumoScenario
+				)
+
+				'''
+				TJS.generate_scenarios(scenarios_todo,sumoJobs)
+
+				results = TJS.execute_scenarios(simulations_todo,sumoJobs)
+
+				for c_i in range(len(results)):
+					TJBenchmark.results_storage[pickle.dumps(candidates_todo[c_i])] = {}
+					for key,value in results[c_i].items():
+						TJBenchmark.results_storage[
+							pickle.dumps(candidates_todo[c_i])
+						][str(key)] = value
+						dprint("[ results: %s %d ]" % (key,value))
+
 
 			return [
 				TJBenchmark.results_storage[
