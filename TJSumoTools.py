@@ -29,7 +29,7 @@ def write_xml(root,location):
 		f.write(prettyttl.encode("utf8"))
 
 def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,dataCollection,debug,wait=True):
-	dprint("[ launching simulation... ]")
+	dprint("[ launching simulation on port "+ str(port) + "... ]")
 	sumoAutoStart=""
 	if autostart==True:
 		sumoAutoStart=" --start"
@@ -265,6 +265,7 @@ def execute_scenarios(parametersList, jobs, port):
 	'''
 
 	portPool = 	list(np.array((range(jobs)))+port)
+	dprint("[ Port pool: " + str(portPool[0]) + "-" + str(portPool[-1]) + " ]")
 
 	done = 0
 	todo_queue=parametersList+[]
@@ -275,12 +276,13 @@ def execute_scenarios(parametersList, jobs, port):
 	while done < len(parametersList) or currentJobs>0:
 		while currentJobs<jobs and len(todo_queue)>0:
 			parameterSet = todo_queue.pop()
+			usable_port = portPool.pop()
 			sim = execute_scenario(
 				parameterSet["launch"],
 				parameterSet["sumoScenario"],
 				parameterSet["sumoRoutes"],
 				parameterSet["sumoStepSize"],
-				parameterSet["sumoPort"]+portPool.pop(),
+				usable_port,
 				parameterSet["sumoAutoStart"],
 				parameterSet["sumoEnd"],
 				parameterSet["sumoDelay"],
@@ -291,7 +293,7 @@ def execute_scenarios(parametersList, jobs, port):
 			processes[simid_inc]={
 				"process":sim["process"],
 				"traci":sim["traci"],
-				"sumoPort": parameterSet['sumoPort'],
+				"sumoPort": usable_port,
 				"stepsLeft": parameterSet['sumoEnd'],
 				"sumoDelay": parameterSet["sumoDelay"],
 				"dataCollection": parameterSet["dataCollection"],				
