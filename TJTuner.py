@@ -149,9 +149,9 @@ class TJBenchmark(benchmarks.Benchmark):
 							"sumoScenario": sumoScenario,
 							"netconvert_output": netconvert_output==1,
 							"kwargs":{
-								"output": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
-								"node": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
-								"tllogic":  folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
+								"output": folder + "/ind" + str(ind) + "_" + sumoScenario,
+								"node": folder + "/ind" + str(ind) + "_" + sumoScenario,
+								"tllogic":  folder + "/ind" + str(ind) + "_" + sumoScenario
 							}
 						})
 
@@ -170,7 +170,7 @@ class TJBenchmark(benchmarks.Benchmark):
 
 						simulations_todo.append({
 							"launch":sumoLaunch,
-							"sumoScenario": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,	
+							"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,	
 							"sumoRoutes": sumoRouteFile,
 							"sumoStepSize": sumoStepSize,
 							"sumoPort": sumoPort,

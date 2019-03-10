@@ -6,7 +6,10 @@ parser.add_argument("-f","--folder", type=str, help="Result folder to analyze", 
 parser.add_argument("-r","--run", type=int, help="Re-run the simulation of a specific individual (default is 0)", required=False, default=0)
 parser.add_argument("-pg","--pick-generation", type=str, help="re-simulate a populaton, select which generation (default is last one)", required=False, default=-1)
 parser.add_argument("-pi","--pick-individual", type=str, help="re-simulate a populaton, select which individual (default is individual 0)", required=False, default=0)
+parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a populaton, select which repetition of the individual (default is repetition 0)", required=False, default=0)
 parser.add_argument("-pl","--plot", type=int, help="Plot objective throughout generations", required=False, default=1)
+parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
+parser.add_argument("-pp","--plot-pdf", type=str, help="Pdf file name in which plots are are saved (if requested) instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
 parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", required=False, default="a")
 
 args = parser.parse_args()
@@ -40,6 +43,7 @@ sumoScenario = "trento"
 sumoPort = 27910
 sumoEnd = 3600
 sumoDelay = 0.1
+sumoStepSize = 0.1
 
 #reordering function for population sorting
 def get_no(e):
@@ -49,7 +53,7 @@ def get_no(e):
 def plot_all():
 	plt.ioff()
 
-	plt.figure()
+	plt.figure(figsize=(16,10))
 	plt.suptitle(args.folder+" - results")
 
 	plotnumber = len(populations[0][0].fitness)
@@ -58,10 +62,15 @@ def plot_all():
 		ax = plt.subplot(int(np.ceil(np.sqrt(plotnumber))),int(np.ceil(np.sqrt(plotnumber))),index+1)
 		
 		#**calculations**
+		if "linemax" in args.plot_type.split():
+			plt.plot([np.max([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="max")
+		if "lineavg" in args.plot_type.split():
+			plt.plot([np.mean([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="mean")
+		if "linemin" in args.plot_type.split():
+			plt.plot([np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
 
-		plt.plot([np.max([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="max")
-		plt.plot([np.mean([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="mean")
-		plt.plot([np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
+		if "box" in args.plot_type.split():
+			plt.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=list(range(len(populations))))
 
 		plt.legend()
 		plt.title(titles[index])
@@ -71,7 +80,13 @@ def plot_all():
 
 		index+=1
 
-	plt.show()
+	if args.plot_pdf==None:
+		plt.show()
+	else:
+		if not os.path.isdir(args.folder+"/results"):
+			os.mkdir(args.folder + "/results")
+		plt.savefig(args.folder + "/results/" + args.plot_pdf, format="pdf")
+
 
 #Table printing procedure
 def print_table(table):
@@ -91,12 +106,22 @@ def print_table(table):
 		dprint('|'+row_str)
 
 
-def execute_individual(pop,ind):
-	TJS.generate_traffic_light(populations[pop][ind].candidate['scenario'],sumoScenario,"TEMP")
-	TJS.generate_scenario(sumoScenario, netconvertDebug ,node="TEMP",tllogic="TEMP") 
+def execute_individual(pop,ind,rep=0):
 	TJS.execute_scenario(
-		str("sumo-gui -c " + sumoScenario + ".sumo.cfg").split(" "),
+		"sumo-gui",
+		("%s/ind%d_%s" % (
+			args.folder,
+			populations[pop][ind].candidate['ind'],
+			sumoScenario,
+		)),		("%s/ind%d_rep%d_%s" % (
+			args.folder,
+			populations[pop][ind].candidate['ind'],
+			populations[pop][ind].candidate['rep'],
+			sumoScenario,
+		)),
+		sumoStepSize,
 		sumoPort,
+		False,	#no autostart
 		sumoEnd,
 		sumoDelay,
 		False,	#no data collection
@@ -138,8 +163,12 @@ def __main__():
 		plot_all()
 
 	if args.run==1:
-		dprint("[ running individual %s,%s ]"%(args.pick_generation,args.pick_individual))
-		execute_individual(int(args.pick_generation),int(args.pick_individual))
+		dprint("[ running individual: gen %s, ind %s, rep %s ]"%(
+			args.pick_generation,
+			args.pick_individual,
+			args.pick_repetition
+		))
+		execute_individual(int(args.pick_generation),int(args.pick_individual),rep=int(args.pick_repetition))
 
 if __name__ == "__main__":
 	__main__()
