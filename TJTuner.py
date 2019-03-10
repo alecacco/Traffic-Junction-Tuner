@@ -142,7 +142,7 @@ class TJBenchmark(benchmarks.Benchmark):
 						trafficLights_todo.append({
 							"scenario": candidate['scenario'],
 							"sumoScenario_orig": sumoScenario,
-							"sumoScenario_dest": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
+							"sumoScenario_dest": folder + "/ind" + str(ind) + "_" + sumoScenario
 						})
 
 						scenarios_todo.append({
