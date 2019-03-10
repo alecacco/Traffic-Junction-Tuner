@@ -18,7 +18,9 @@ parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program
 parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
 parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
 parser.add_argument("-j","--jobs", type=int, help="Simulation parallelization. Allow for individuals to be simulated simultaneously. Default is 1", default = 1)
-parser.add_argument("-rr","--random-routes", type=int, help="Randomize routes for each simulation. Default is 0 (no randomization, one simulation per individual), values higher than 0 implies multiple repetitions", default = 0)
+parser.add_argument("-rr","--random-routes", type=int, help="Randomize routes for each simulation. Default is 1 (no randomization, one simulation per individual), values higher than 1 implies multiple repetitions.", default = 1)
+parser.add_argument("-rf","--route-frequency", type=int, help="Repetition rate, needed to generate random routes with the Sumo integrated randomTrips.py script. Value in seconds, default 2", default = 1)
+parser.add_argument("-rx","--route-file", type=str, help="Force non randomized routes, use a specific route file", default=None)#trento_2")
 #TODO add seeds and randomization for bot sumo simulation and netconvert route generation, also manage the seed loading in TJAnalyzer to repeat the exact individual
 
 #Genetic algorithm paramenters
@@ -52,6 +54,7 @@ from multi_objective import run
 from inspyred.ec.emo import Pareto
 from inspyred.ec.variators import mutator
 from inspyred.ec.variators import crossover
+import numpy as np
 
 #Simulation generation and execution library
 import TJSumoTools as TJS
@@ -73,6 +76,9 @@ sumoEnd = args.end
 sumoDelay = args.step_delay
 sumoJobs = args.jobs
 sumoStepSize = args.step_size
+sumoRandomRoutes = args.random_routes
+sumoRouteFile = args.route_file
+sumoRepetitionRate = args.route_frequency
 
 netconvert_output = args.netconvert_output
 sumo_output = args.sumo_output
@@ -81,14 +87,14 @@ sumo_output = args.sumo_output
 ind = 0
 junctionNumber = 998
 
-#simulations result
-results = []
 folder = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
 os.mkdir(folder)
 
 with open(folder+"/launch", "w") as lauch_save:
-	launch_string = str(sys.argv)
-	lauch_save.write("Launched with "+launch_string)
+	launch_string = " "
+	for arg in sys.argv:
+		launch_string += str(arg)+" "
+	lauch_save.write("Launched with \""+launch_string+"\"")
 
 def clean_scenario():
 	nod = ET.parse(sumoScenario + ".nod.xml").getroot()
@@ -120,43 +126,60 @@ class TJBenchmark(benchmarks.Benchmark):
 			#generate and execute_scenario
 			trafficLights_todo = []
 			scenarios_todo = []
+			routes_todo = []
 			simulations_todo = []
 			candidates_todo = []
 			for candidate in candidates:
 				dprint("[ evaluating - ind:"+str(ind)+" ]")
 				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
 					dprint("[ need simulation ]")
-					candidate['ind'] = ind
 					candidates_todo.append(candidate)
+					for rep in range(sumoRandomRoutes):
+						dprint("[ \tevaluating - rep:"+str(rep)+" ]")
+						candidate['ind'] = ind
+						candidate['rep'] = rep
 
-					trafficLights_todo.append({
-						"scenario": candidate['scenario'],
-						"sumoScenario_orig": sumoScenario,
-						"sumoScenario_dest": folder+"/ind" + str(ind) + "_" + sumoScenario
-					})
+						trafficLights_todo.append({
+							"scenario": candidate['scenario'],
+							"sumoScenario_orig": sumoScenario,
+							"sumoScenario_dest": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
+						})
 
-					scenarios_todo.append({
-						"sumoScenario": sumoScenario,
-						"netconvert_output": netconvert_output==1,
-						"kwargs":{
-							"output": folder + "/ind"  + str(ind) + "_" + sumoScenario,
-							"node": folder + "/ind" + str(ind) + "_" + sumoScenario,
-							"tllogic":  folder + "/ind"  + str(ind) + "_" + sumoScenario
-						}
-					})
+						scenarios_todo.append({
+							"sumoScenario": sumoScenario,
+							"netconvert_output": netconvert_output==1,
+							"kwargs":{
+								"output": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
+								"node": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
+								"tllogic":  folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
+							}
+						})
 
-					simulations_todo.append({
-						"launch":sumoLaunch,
-						"sumoScenario": folder + "/ind"  + str(ind) + "_" + sumoScenario,	
-						"sumoRoutes": "trento_2", #TODO generate random routes and load them here! #folder + "/ind"  + str(ind) + "_" + sumoScenario,	
-						"sumoStepSize": sumoStepSize,
-						"sumoPort": sumoPort,
-						"sumoAutoStart": sumoAutoStart,
-						"sumoEnd": sumoEnd,
-						"sumoDelay": sumoDelay,
-						"dataCollection": True,
-						"sumoOutput": sumo_output==1
-					})
+						routes_todo.append({
+							"sumoScenario": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
+							"prefix": "route",
+							"sumoEnd": sumoEnd,
+							"repetitionRate": sumoRepetitionRate, 
+							"output": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
+						})
+
+						if sumoRouteFile == None:
+							current_route = folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
+						else:
+							current_route = sumoRouteFile
+
+						simulations_todo.append({
+							"launch":sumoLaunch,
+							"sumoScenario": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,	
+							"sumoRoutes": sumoRouteFile,
+							"sumoStepSize": sumoStepSize,
+							"sumoPort": sumoPort,
+							"sumoAutoStart": sumoAutoStart,
+							"sumoEnd": sumoEnd,
+							"sumoDelay": sumoDelay,
+							"dataCollection": True,
+							"sumoOutput": sumo_output==1
+						})
 
 					ind += 1
 
@@ -181,9 +204,19 @@ class TJBenchmark(benchmarks.Benchmark):
 				)
 
 				'''
+
+				TJS.generate_routes(routes_todo,sumoJobs) #TODO
+
 				TJS.generate_scenarios(scenarios_todo,sumoJobs)
 
-				results = TJS.execute_scenarios(simulations_todo,sumoJobs)
+				raw_results = TJS.execute_scenarios(simulations_todo,sumoJobs,sumoPort)
+				results = []
+
+				for res_set in range(len(raw_results)/sumoRandomRoutes):
+					avg_res = {}
+					for k in ["accidents","arrived","teleported","agv_speed"]:
+						avg_res[k] = np.mean([resrep[k] for resrep in raw_results[sumoRandomRoutes*res_set:sumoRandomRoutes*(res_set+1)]])
+					results.append(avg_res)
 
 				for c_i in range(len(results)):
 					TJBenchmark.results_storage[pickle.dumps(candidates_todo[c_i])] = {}
@@ -214,12 +247,11 @@ class TJBenchmark(benchmarks.Benchmark):
 
 	def generator(self, random, args):
 		dprint("[ generating initial population ]")
-		#return [random.uniform(-5.0, 5.0) for _ in range(self.dimensions)]
 		global ind
 		new_ind = {
 			'ind':-1,
 			'sigmaMutator':1,
-			'scenario':[ #TODO definitely not ideal, should apply some constraints!!
+			'scenario':[ 
 				{
 					'type':random.choice(['p','t']),
 					'ytime':random.uniform(high=args["yellow_max"],low=args["yellow_min"]),
@@ -290,42 +322,7 @@ def mutate(random, candidate, args):
 		bounder = args['_ec'].bounder
 		candidate = bounder(candidate, args)
 	return candidate
-	"""
-	def mutate(random, candidate, args):
-		treshold = random.uniform(0,1)
-		mutationTreshold = random.uniform(0,1)
-		li = candidate['scenario']
-		for junction in li:
-			if(mutationTreshold<0.99):
-				if(junction['type'] == 't'):
-					if(treshold<0.33):
-						junction['type']  = 'p'
-					elif(treshold<0.66):
-						ytime = round(junction['ytime'] +random.gauss(0,1))
-						if(ytime < 0):
-							ytime = -1*ytime
-						junction['ytime'] = ytime
-					else:
-						grtime = round(junction['grtime']+random.gauss(0,1))
-						if(grtime < 0):
-							grtime = -1*grtime
-						junction['grtime'] = grtime
-				elif(junction['type'] == 'p'):
-					if(treshold <0.5):
-						junction['type'] = 't'
-					elif(treshold <0.75):
-						ytime = round(junction['ytime'] +random.gauss(0,1))
-						if(ytime < 0):
-							ytime = -1*ytime
-						junction['ytime'] = ytime
-					else:
-						grtime = round(junction['grtime']+random.gauss(0,1))
-						if(grtime < 0):
-							grtime = -1*grtime
-						junction['grtime'] = grtime
-		candidate['scenario']=li
-		return candidate
-		"""
+
 @crossover
 def cross(random, mom, dad, args):
 	dprint("[ entering crossover ]")

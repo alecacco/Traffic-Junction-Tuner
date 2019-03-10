@@ -3,7 +3,7 @@ import os
 import subprocess32
 import traci
 import time
-import numpy
+import numpy as np
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 from threading import RLock
@@ -74,10 +74,10 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 
 				vehicleIDs = t.vehicle.getIDList()
 				if len(vehicleIDs)>0:
-					agv_speeds.append(numpy.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
+					agv_speeds.append(np.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
 
 		if dataCollection:
-			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,numpy.mean(agv_speeds)))
+			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,np.mean(agv_speeds)))
 		else:
 			dprint("[ simulation completed with no data collection ]")
 		
@@ -88,7 +88,7 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 			"accidents":accidents, 
 			"arrived":arrived, 
 			"teleported":teleported, 
-			"agv_speed":numpy.mean(agv_speeds)
+			"agv_speed":np.mean(agv_speeds)
 		})	
 	else:
 		dprint("[ simulation launched and running ]")
@@ -251,7 +251,7 @@ def generate_scenarios(parametersList, jobs,**kwargs):
 		for pid in pidtodelete:
 			del(processes[pid])
 
-def execute_scenarios(parametersList, jobs):
+def execute_scenarios(parametersList, jobs, port):
 
 	lock = RLock()
 	results_d = {}
@@ -263,6 +263,8 @@ def execute_scenarios(parametersList, jobs):
 		agv_speeds = []
 			\->avg_speed = ##
 	'''
+
+	portPool = 	list(np.array((range(jobs)))+port)
 
 	done = 0
 	todo_queue=parametersList+[]
@@ -278,7 +280,7 @@ def execute_scenarios(parametersList, jobs):
 				parameterSet["sumoScenario"],
 				parameterSet["sumoRoutes"],
 				parameterSet["sumoStepSize"],
-				parameterSet["sumoPort"]+simid_inc,
+				parameterSet["sumoPort"]+portPool.pop(),
 				parameterSet["sumoAutoStart"],
 				parameterSet["sumoEnd"],
 				parameterSet["sumoDelay"],
@@ -289,6 +291,7 @@ def execute_scenarios(parametersList, jobs):
 			processes[simid_inc]={
 				"process":sim["process"],
 				"traci":sim["traci"],
+				"sumoPort": parameterSet['sumoPort'],
 				"stepsLeft": parameterSet['sumoEnd'],
 				"sumoDelay": parameterSet["sumoDelay"],
 				"dataCollection": parameterSet["dataCollection"],				
@@ -309,6 +312,7 @@ def execute_scenarios(parametersList, jobs):
 			if procinfo["process"].returncode != None:
 				done+=1
 				currentJobs-=1
+				portPool.append(procinfo["sumoPort"])
 				dprint("[ simulation "+ str(simid)+" return code: " + str(procinfo["process"].returncode) + " ]")
 				simidtodelete.append(simid)
 
@@ -337,9 +341,7 @@ def execute_scenarios(parametersList, jobs):
 			parameterSet["sumoOutput"],
 		))
 	'''
-
-	print("dict: " + str(len(results_d)))
-	print("list: " + str(len(results)))
+	
 	return results
 
 def advance_simulation(simid, procinfo, results_d, lock):
@@ -356,7 +358,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 
 			vehicleIDs = procinfo["traci"].vehicle.getIDList()
 			if len(vehicleIDs)>0:
-				procinfo["agv_speeds"].append(numpy.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+				procinfo["agv_speeds"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
 	
 	procinfo["traci"].close()
 
@@ -366,7 +368,10 @@ def advance_simulation(simid, procinfo, results_d, lock):
 			"accidents":procinfo["accidents"], 
 			"arrived":procinfo["arrived"], 
 			"teleported":procinfo["teleported"], 
-			"agv_speed":numpy.mean(procinfo["agv_speeds"])
+			"agv_speed":np.mean(procinfo["agv_speeds"])
 		}						
 	finally:
 		lock.release()
+
+def generate_routes(routes, jobs):
+	pass
