@@ -191,40 +191,40 @@ class TJBenchmark(benchmarks.Benchmark):
 				TJS.generate_traffic_light(candidate['scenario'],sumoScenario,folder+"/ind" + str(ind) + "_" + sumoScenario)
 				Implementation is not really multithreading atm
 				'''
-				TJS.generate_traffic_lights(trafficLights_todo,sumoJobs)
+			TJS.generate_traffic_lights(trafficLights_todo,sumoJobs)
 
-				'''
-				Old Call:
-				TJS.generate_scenario(
-					sumoScenario,
-					netconvert_output==1,
-					output = folder + "/ind"  + str(ind) + "_" + sumoScenario,
-					node = folder + "/ind" + str(ind) + "_" + sumoScenario,
-					tllogic = folder + "/ind"  + str(ind) + "_" + sumoScenario
-				)
+			'''
+			Old Call:
+			TJS.generate_scenario(
+				sumoScenario,
+				netconvert_output==1,
+				output = folder + "/ind"  + str(ind) + "_" + sumoScenario,
+				node = folder + "/ind" + str(ind) + "_" + sumoScenario,
+				tllogic = folder + "/ind"  + str(ind) + "_" + sumoScenario
+			)
 
-				'''
+			'''
 
-				TJS.generate_scenarios(scenarios_todo,sumoJobs)
+			TJS.generate_scenarios(scenarios_todo,sumoJobs)
 
-				TJS.generate_routes(routes_todo,sumoJobs) #TODO
+			TJS.generate_routes(routes_todo,sumoJobs) #TODO
 
-				raw_results = TJS.execute_scenarios(simulations_todo,sumoJobs,sumoPort)
-				results = []
+			raw_results = TJS.execute_scenarios(simulations_todo,sumoJobs,sumoPort)
+			results = []
 
-				for res_set in range(len(raw_results)/sumoRandomRoutes):
-					avg_res = {}
-					for k in ["accidents","arrived","teleported","agv_speed"]:
-						avg_res[k] = np.mean([resrep[k] for resrep in raw_results[sumoRandomRoutes*res_set:sumoRandomRoutes*(res_set+1)]])
-					results.append(avg_res)
+			for res_set in range(len(raw_results)/sumoRandomRoutes):
+				avg_res = {}
+				for k in ["accidents","arrived","teleported","agv_speed"]:
+					avg_res[k] = np.mean([resrep[k] for resrep in raw_results[sumoRandomRoutes*res_set:sumoRandomRoutes*(res_set+1)]])
+				results.append(avg_res)
 
-				for c_i in range(len(results)):
-					TJBenchmark.results_storage[pickle.dumps(candidates_todo[c_i])] = {}
-					for key,value in results[c_i].items():
-						TJBenchmark.results_storage[
-							pickle.dumps(candidates_todo[c_i])
-						][str(key)] = value
-						dprint("[ results: %s %f ]" % (key,value))
+			for c_i in range(len(results)):
+				TJBenchmark.results_storage[pickle.dumps(candidates_todo[c_i])] = {}
+				for key,value in results[c_i].items():
+					TJBenchmark.results_storage[
+						pickle.dumps(candidates_todo[c_i])
+					][str(key)] = value
+					dprint("[ results: %s %f ]" % (key,value))
 
 
 			return [
