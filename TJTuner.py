@@ -156,13 +156,14 @@ class TJBenchmark(benchmarks.Benchmark):
 						})
 
 						routes_todo.append({
-							"sumoScenario": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
+							"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,
 							"prefix": "route",
 							"sumoEnd": sumoEnd,
 							"repetitionRate": sumoRepetitionRate, 
 							"output": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
 						})
 
+						current_route = ""
 						if sumoRouteFile == None:
 							current_route = folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
 						else:
@@ -171,7 +172,7 @@ class TJBenchmark(benchmarks.Benchmark):
 						simulations_todo.append({
 							"launch":sumoLaunch,
 							"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,	
-							"sumoRoutes": sumoRouteFile,
+							"sumoRoutes": current_route,
 							"sumoStepSize": sumoStepSize,
 							"sumoPort": sumoPort,
 							"sumoAutoStart": sumoAutoStart,
@@ -205,9 +206,9 @@ class TJBenchmark(benchmarks.Benchmark):
 
 				'''
 
-				TJS.generate_routes(routes_todo,sumoJobs) #TODO
-
 				TJS.generate_scenarios(scenarios_todo,sumoJobs)
+
+				TJS.generate_routes(routes_todo,sumoJobs) #TODO
 
 				raw_results = TJS.execute_scenarios(simulations_todo,sumoJobs,sumoPort)
 				results = []
@@ -224,7 +225,7 @@ class TJBenchmark(benchmarks.Benchmark):
 						TJBenchmark.results_storage[
 							pickle.dumps(candidates_todo[c_i])
 						][str(key)] = value
-						dprint("[ results: %s %d ]" % (key,value))
+						dprint("[ results: %s %f ]" % (key,value))
 
 
 			return [

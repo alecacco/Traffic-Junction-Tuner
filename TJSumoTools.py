@@ -375,5 +375,25 @@ def advance_simulation(simid, procinfo, results_d, lock):
 	finally:
 		lock.release()
 
+def generate_route(route):
+	dprint("[ generating route... ]")
+	randomTripsLaunch = str( os.environ["SUMO_HOME"]+"/tools/randomTrips.py \
+			-n " + route['sumoScenario'] + ".net.xml \
+			--prefix " + route["prefix"] 
+			+ " -p " + str(route["repetitionRate"])
+			+ " -e " + str(route["sumoEnd"])
+			+ " -r " + route["output"] + ".rou.xml"
+		).split()
+
+	if (debug):
+		randomTripsProcess = subprocess32.Popen(randomTripsLaunch)
+	else:
+		randomTripsProcess = subprocess32.Popen(randomTripsLaunch,stdout=FNULL,stderr=FNULL)
+
+	randomTripsProcess.wait()
+	os.remove(route["output"] + ".rou.alt.xml")
+
+
 def generate_routes(routes, jobs):
-	pass
+	for route in routes:
+		generate_route(route)
