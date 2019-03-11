@@ -134,26 +134,25 @@ class TJBenchmark(benchmarks.Benchmark):
 				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
 					dprint("[ need simulation ]")
 					candidates_todo.append(candidate)
+					candidate['ind'] = ind
+					trafficLights_todo.append({
+						"scenario": candidate['scenario'],
+						"sumoScenario_orig": sumoScenario,
+						"sumoScenario_dest": folder + "/ind" + str(ind) + "_" + sumoScenario
+					})
+
+					scenarios_todo.append({
+						"sumoScenario": sumoScenario,
+						"netconvert_output": netconvert_output==1,
+						"kwargs":{
+							"output": folder + "/ind" + str(ind) + "_" + sumoScenario,
+							"node": folder + "/ind" + str(ind) + "_" + sumoScenario,
+							"tllogic":  folder + "/ind" + str(ind) + "_" + sumoScenario
+						}
+					})
 					for rep in range(sumoRandomRoutes):
 						dprint("[ \tevaluating - rep:"+str(rep)+" ]")
-						candidate['ind'] = ind
 						candidate['rep'] = rep
-
-						trafficLights_todo.append({
-							"scenario": candidate['scenario'],
-							"sumoScenario_orig": sumoScenario,
-							"sumoScenario_dest": folder + "/ind" + str(ind) + "_" + sumoScenario
-						})
-
-						scenarios_todo.append({
-							"sumoScenario": sumoScenario,
-							"netconvert_output": netconvert_output==1,
-							"kwargs":{
-								"output": folder + "/ind" + str(ind) + "_" + sumoScenario,
-								"node": folder + "/ind" + str(ind) + "_" + sumoScenario,
-								"tllogic":  folder + "/ind" + str(ind) + "_" + sumoScenario
-							}
-						})
 
 						routes_todo.append({
 							"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,
