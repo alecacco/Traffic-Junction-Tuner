@@ -60,17 +60,23 @@ def plot_all():
 	index = 0
 	for plot in range(plotnumber):
 		ax = plt.subplot(int(np.ceil(np.sqrt(plotnumber))),int(np.ceil(np.sqrt(plotnumber))),index+1)
+
+		xticks = list(range(len(populations)))
 		
 		#**calculations**
 		if "linemax" in args.plot_type.split():
-			plt.plot([np.max([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="max")
+			plt.plot(list(range(len(populations))),[np.max([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="max")
 		if "lineavg" in args.plot_type.split():
-			plt.plot([np.mean([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="mean")
+			plt.plot(list(range(len(populations))),[np.mean([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="mean")
 		if "linemin" in args.plot_type.split():
-			plt.plot([np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
+			plt.plot(list(range(len(populations))),[np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
+
+		locs, labels = plt.xticks() 
 
 		if "box" in args.plot_type.split():
-			plt.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=list(range(len(populations))))
+			plt.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
+
+		plt.xticks(locs)
 
 		plt.legend()
 		plt.title(titles[index])
@@ -96,9 +102,9 @@ def print_table(table):
 	dprint("-"*len(title))
 	rows = []
 	for ind in populations[table]:
-		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))])
+		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']])
 	rows = [[i]+rows[i] for i in range(len(rows))]
-	rows = [["ind"]+titles]+rows
+	rows = [["pop_ind"]+titles+["actual_ind"]]+rows
 	for r_i in range(len(rows)):
 		row_str = ""
 		for e_i in range(len(rows[r_i])):
