@@ -10,7 +10,8 @@ parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a pop
 parser.add_argument("-pl","--plot", type=int, help="Plot objective throughout generations", required=False, default=1)
 parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
 parser.add_argument("-pp","--plot-pdf", type=str, help="Pdf file name in which plots are are saved (if requested) instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
-parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", required=False, default="a")
+parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", required=False, default="-1")
+parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv file to compare the data to.", required=False, default=None)
 
 args = parser.parse_args()
 if args.table=="a":
@@ -34,9 +35,11 @@ sumoDebug = False
 netconvertDebug = False
 
 #plotting paramenters
-objectives = ["+agv_speed","+arrived","-teleported","-accidents"]
-signs = [+1 if obj[0]=="+" else -1 for obj in objectives]
 titles = ["Average speed","Arrived","Teleported","Accidents"]
+objectives = ["+agv_speed","+arrived","-teleported","-accidents"]
+#titles = ["Arrived","Teleported","Accidents"]
+#objectives = ["+arrived","-teleported","-accidents"]
+signs = [+1 if obj[0]=="+" else -1 for obj in objectives]
 
 #scenario parameters
 sumoScenario = "trento"
@@ -96,20 +99,64 @@ def plot_all():
 
 #Table printing procedure
 def print_table(table):
-	title = ("*** Table of individuals for generation %d **" % table)
+	title = ("******** Table of individuals for generation %d ********" % table)
 	dprint("-"*len(title))
 	dprint(title)
 	dprint("-"*len(title))
 	rows = []
+
+	if args.reference_scenario!=None:
+		reference_scenario_data = load_reference_data(args.reference_scenario)
+
 	for ind in populations[table]:
-		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']])
+		dominated = []
+		dominating = []
+		if args.reference_scenario!=None:
+			dominated.append(is_dominated(
+				[ind.fitness[i] for i in range(len(objectives))], 
+				[reference_scenario_data[i]*signs[i] for i in range(len(objectives))]
+			))
+			dominating.append(is_dominated(
+				[reference_scenario_data[i]*signs[i] for i in range(len(objectives))],	
+				[ind.fitness[i] for i in range(len(objectives))]
+			))
+		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+dominated+dominating)
+	
 	rows = [[i]+rows[i] for i in range(len(rows))]
-	rows = [["pop_ind"]+titles+["actual_ind"]]+rows
+	
+	if args.reference_scenario==None:
+		rows = [["pop_ind"]+titles+["actual_ind"]]+rows
+	else:
+		rows = [["pop_ind"]+titles+["actual_ind","dominated","dominating"]]+rows
+
+	rows = rows[:1] + [["-" * len(header) for header in rows[0]]] + rows[1:]
+	rows += rows[1:2]
+
+
 	for r_i in range(len(rows)):
 		row_str = ""
 		for e_i in range(len(rows[r_i])):
-			row_str=row_str+('{:^'+str(max([len(str(rows[r][e_i])) for r in range(len(rows))])+2)+'}|').format(rows[r_i][e_i])
+			row_str = row_str+('{:^'+str(max([len(str(rows[r][e_i])) for r in range(len(rows))])+2)+'}|').format(rows[r_i][e_i])
 		dprint('|'+row_str)
+
+def is_dominated(fitness1,fitness2):
+	notworse = True
+	betterinsth = False
+	for f_i in range(len(fitness1)):
+		if fitness2[f_i] < fitness1[f_i]:
+			notworse = False
+		if fitness2[f_i] > fitness1[f_i]:
+			betterinsth = True
+
+	if (notworse and betterinsth):
+		return "YES"
+	else:
+		return "NO"
+
+def load_reference_data(ref_filename):
+	with open(ref_filename, 'rb') as ref_file:
+		reference_scenario_data = pickle.load(ref_file)
+	return [np.mean([refrep[obj[1:]] for refrep in reference_scenario_data]) for obj in objectives]
 
 
 def execute_individual(pop,ind,rep=0):
