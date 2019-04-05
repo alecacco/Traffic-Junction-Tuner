@@ -97,8 +97,8 @@ def plot_all():
 		plt.savefig(args.folder + "/results/" + args.plot_pdf, format="pdf")
 
 def is_dominated(fitness1,fitness2,invert=False):
-	fit1 = fitness1+[]
-	fit2 = fitness2+[]
+	fit1 = fitness1
+	fit2 = fitness2
 	if invert:
 		fitT = fitness1
 		fit1 = fit2
@@ -119,11 +119,12 @@ def is_dominated(fitness1,fitness2,invert=False):
 
 def count_dominated(fitness1,fitnesses,invert=False):
 	count = 0
-	for fitness2 in fitnesses:
+	rearranged_fitnesses = zip(*(fitnesses+[]))
+	for fitness2 in rearranged_fitnesses:
 		if is_dominated(fitness1,fitness2,invert)==True:
 			count+=1
 
-	return(str(count)+"/"+str(len(fitnesses)))
+	return(str(count)+"/"+str(len(rearranged_fitnesses)))
 
 def load_reference_data(ref_filename):
 	with open(ref_filename, 'rb') as ref_file:
@@ -144,6 +145,7 @@ def print_table(table):
 	for ind in populations[table]:
 		dominated = []
 		dominating = []
+		print([[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data])
 		if args.reference_scenario!=None:
 			dominated.append(count_dominated(
 				[ind.fitness[i] for i in range(len(objectives))], 
