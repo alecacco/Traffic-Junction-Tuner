@@ -145,7 +145,7 @@ def print_table(table):
 		dominated = []
 		dominating = []
 		if args.reference_scenario!=None:
-S			dominated.append(count_dominated(
+			dominated.append(count_dominated(
 				[ind.fitness[i] for i in range(len(objectives))], 
 				[[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data]
 			))
