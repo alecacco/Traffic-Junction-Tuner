@@ -96,6 +96,39 @@ def plot_all():
 			os.mkdir(args.folder + "/results")
 		plt.savefig(args.folder + "/results/" + args.plot_pdf, format="pdf")
 
+def is_dominated(fitness1,fitness2,invert=False):
+	fit1 = fitness1+[]
+	fit2 = fitness2+[]
+	if invert:
+		fitT = fitness1
+		fit1 = fit2
+		fit2 = fitT
+
+	notworse = True
+	betterinsth = False
+	for f_i in range(len(fit1)):
+		if fit2[f_i] < fit1[f_i]:
+			notworse = False
+		if fit2[f_i] > fit1[f_i]:
+			betterinsth = True
+
+	if (notworse and betterinsth):
+		return True
+	else:
+		return False
+
+def count_dominated(fitness1,fitnesses,invert=False):
+	count = 0
+	for fitness2 in fitnesses:
+		if is_dominated(fitness1,fitness2,invert)==True:
+			count+=1
+
+	return(str(count)+"/"+str(len(fitnesses)))
+
+def load_reference_data(ref_filename):
+	with open(ref_filename, 'rb') as ref_file:
+		reference_scenario_data = pickle.load(ref_file)
+	return [[refrep[obj[1:]] for refrep in reference_scenario_data] for obj in objectives]
 
 #Table printing procedure
 def print_table(table):
@@ -112,13 +145,14 @@ def print_table(table):
 		dominated = []
 		dominating = []
 		if args.reference_scenario!=None:
-			dominated.append(is_dominated(
+			dominated.append(count_dominated(
 				[ind.fitness[i] for i in range(len(objectives))], 
-				[reference_scenario_data[i]*signs[i] for i in range(len(objectives))]
+				[[data[i]*signs[i] for data in reference_scenario_data] for i in range(len(objectives))]
 			))
-			dominating.append(is_dominated(
-				[reference_scenario_data[i]*signs[i] for i in range(len(objectives))],	
-				[ind.fitness[i] for i in range(len(objectives))]
+			dominating.append(count_dominated(
+				[ind.fitness[i] for i in range(len(objectives))], 
+				[[data[i]*signs[i] for data in reference_scenario_data] for i in range(len(objectives))],
+				invert=True
 			))
 		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+dominated+dominating)
 	
@@ -138,26 +172,6 @@ def print_table(table):
 		for e_i in range(len(rows[r_i])):
 			row_str = row_str+('{:^'+str(max([len(str(rows[r][e_i])) for r in range(len(rows))])+2)+'}|').format(rows[r_i][e_i])
 		dprint('|'+row_str)
-
-def is_dominated(fitness1,fitness2):
-	notworse = True
-	betterinsth = False
-	for f_i in range(len(fitness1)):
-		if fitness2[f_i] < fitness1[f_i]:
-			notworse = False
-		if fitness2[f_i] > fitness1[f_i]:
-			betterinsth = True
-
-	if (notworse and betterinsth):
-		return "YES"
-	else:
-		return "NO"
-
-def load_reference_data(ref_filename):
-	with open(ref_filename, 'rb') as ref_file:
-		reference_scenario_data = pickle.load(ref_file)
-	return [np.mean([refrep[obj[1:]] for refrep in reference_scenario_data]) for obj in objectives]
-
 
 def execute_individual(pop,ind,rep=0):
 	TJS.execute_scenario(
