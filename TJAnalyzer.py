@@ -119,7 +119,7 @@ def is_dominated(fitness1,fitness2,invert=False):
 
 def count_dominated(fitness1,fitnesses,invert=False):
 	count = 0
-	rearranged_fitnesses = zip(*(fitnesses+[]))
+	rearranged_fitnesses = fitnesses+[]
 	for fitness2 in rearranged_fitnesses:
 		if is_dominated(fitness1,fitness2,invert)==True:
 			count+=1
@@ -145,15 +145,15 @@ def print_table(table):
 	for ind in populations[table]:
 		dominated = []
 		dominating = []
-		print([[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data])
+		#print([[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data])
 		if args.reference_scenario!=None:
 			dominated.append(count_dominated(
 				[ind.fitness[i] for i in range(len(objectives))], 
-				[[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data]
+				[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)]
 			))
 			dominating.append(count_dominated(
 				[ind.fitness[i] for i in range(len(objectives))], 
-				[[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data],
+				[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
 				invert=True
 			))
 		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+dominated+dominating)
