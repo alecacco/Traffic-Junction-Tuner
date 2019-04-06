@@ -85,7 +85,7 @@ sumo_output = args.sumo_output
 
 #other parameters
 ind = 0
-junctionNumber = 998
+junctionNumber = 158# 998
 
 folder = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
 os.mkdir(folder)
