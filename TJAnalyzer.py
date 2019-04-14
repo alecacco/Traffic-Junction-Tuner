@@ -147,6 +147,11 @@ def generate_plot_matrix():
 			index+=1
 
 
+	if args.plot_pdf!=None:
+		if not os.path.isdir(args.folder+"/results"):
+			os.mkdir(args.folder + "/results")
+		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix", format="pdf") #TODO use multipage backend thing
+
 
 #Plotting procedure
 def plot_all():
