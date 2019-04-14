@@ -8,10 +8,11 @@ parser.add_argument("-pg","--pick-generation", type=str, help="re-simulate a pop
 parser.add_argument("-pi","--pick-individual", type=str, help="re-simulate a populaton, select which individual (default is individual 0)", required=False, default=0)
 parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a populaton, select which repetition of the individual (default is repetition 0)", required=False, default=0)
 parser.add_argument("-pl","--plot", type=int, help="Plot objective throughout generations", required=False, default=1)
-parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
+parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"matrix\",\"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
 parser.add_argument("-pp","--plot-pdf", type=str, help="Pdf file name in which plots are are saved (if requested) instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
 parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", required=False, default="-1")
 parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv file to compare the data to.", required=False, default=None)
+parser.add_argument("-mp","--matrix-plot", type=str, help="Select what generations to plot in the matrix plot (if requested). Provide a string with all the requested generations separated by a space. Default is -1", required=False, default="-1")
 
 args = parser.parse_args()
 if args.table=="a":
@@ -28,6 +29,7 @@ dprint = TJS.dprint
 
 files = []
 populations = []
+reference_scenario_data = None
 
 #debug output
 TJS.debug = True
@@ -52,49 +54,152 @@ sumoStepSize = 0.1
 def get_no(e):
 	return int(e[len("population"):-len(".pkl")])
 
+def get_pareto_front(population,objectives_indexes):
+		#I AM SO SORRY
+		#TL;DR: counts how many individuals of the same generation dominates its fitness for the current fitnesses. 
+		#If 0, then it belongs to the pareto front of the generation
+		#I mean, it **should** do it, it's kinda impossible to understand though	
+
+	return [
+		#take the individual within the current generation gen...
+		population[c]
+		for c in range(len(population)) 
+		#...only if no other individual in its generation dominates it, meaning that...
+		if (
+			# ...the number individuals dominating...
+			int(count_dominated(
+				[
+					#...our actual individual c...
+					population[c][k]*signs[k]
+					#...for the current objectives i,j...
+					for k in objectives_indexes
+				],
+				[
+					#...considering the entire actual population gen...
+					[
+						#...but only considering the current objectives i,j...
+						population[ind][k]*signs[k]
+					 	for k in objectives_indexes
+					] for ind in range(len(population))
+				]
+				#...[keeping in mind that the function return a "fraction" of dominating individuals, e.g. 20/30, and we need the first part]...
+				).split("/")[0]
+			#...MUST be 0, i.e. no other individuals dominates the actual individual...
+			)==0)
+		]
+
+def generate_plot_matrix():
+	plt.ioff()
+
+	f = plt.figure(2,figsize=(16,10))
+	f.suptitle(args.folder+" - matrix plot")
+
+	requested_gens = args.matrix_plot.split()
+	references = "r" in requested_gens
+	requested_gens = [int(r) for r in requested_gens if r.isdigit() or (r[0]=="-" and r[1:].isdigit())]
+
+	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
+	matrix_size = len(objectives)
+	index = 0
+	for i in range(matrix_size): 
+		for j in range(matrix_size):
+			if i>j:
+				ax = f.add_subplot(matrix_size,matrix_size,index+1)
+				color = 0
+				for gen in requested_gens:
+					population = [[populations[gen][c].fitness[o]*signs[o] for o in range(len(objectives))] for c in range(len(populations[gen]))]
+					pareto = get_pareto_front(population,[i,j])
+					ax.scatter(
+						[population[c][j] for c in range(len(population)) if population[c] not in pareto],
+						[population[c][i] for c in range(len(population)) if population[c] not in pareto],
+						color="C"+str(color),
+					)
+					ax.scatter(
+						[ind[j] for ind in pareto],
+						[ind[i] for ind in pareto],
+						marker="D",
+						color="C"+str(color),
+						edgecolors='r'
+					) 
+					color+=1
+					if color==3:
+						color+=1
+				if references:
+					ref_quantity = len(reference_scenario_data[0])
+					ref_gen = [[reference_scenario_data[o][c] for o in range(len(objectives))] for c in range(ref_quantity)]
+					pareto = get_pareto_front(ref_gen,[i,j])
+					ax.scatter(
+						[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto],
+						[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto],
+						color="C"+str(color)
+					)
+					ax.scatter(
+						[ind[j] for ind in pareto],
+						[ind[i] for ind in pareto],
+						marker="D",
+						color="C"+str(color),
+						edgecolors='r'
+					)
+			elif i==j:
+				ax = f.add_subplot(matrix_size,matrix_size,index+1)
+				ax.set_axis_off()
+				ax.text(0.5, 0.5, titles[i], ha="center", va="center", fontsize=25, wrap=True)	 
+			index+=1
+
+
+
 #Plotting procedure
 def plot_all():
 	plt.ioff()
 
-	plt.figure(figsize=(16,10))
-	plt.suptitle(args.folder+" - results")
+	if "linemax" in args.plot_type.split() or "linemin" in args.plot_type.split() or "lineavg" in args.plot_type.split() or "box" in args.plot_type.split():
 
-	plotnumber = len(populations[0][0].fitness)
-	index = 0
-	for plot in range(plotnumber):
-		ax = plt.subplot(int(np.ceil(np.sqrt(plotnumber))),int(np.ceil(np.sqrt(plotnumber))),index+1)
+		f = plt.figure(1,figsize=(16,10))
+		f.suptitle(args.folder+" - results")
 
-		xticks = list(range(len(populations)))
-		
-		#**calculations**
-		if "linemax" in args.plot_type.split():
-			plt.plot(list(range(len(populations))),[np.max([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="max")
-		if "lineavg" in args.plot_type.split():
-			plt.plot(list(range(len(populations))),[np.mean([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="mean")
-		if "linemin" in args.plot_type.split():
-			plt.plot(list(range(len(populations))),[np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
+		plotnumber = len(populations[0][0].fitness)
+		index = 0
+		for plot in range(plotnumber):
+			ax = f.add_subplot(int(np.ceil(np.sqrt(plotnumber))),int(np.ceil(np.sqrt(plotnumber))),index+1,
+				xlabel="Generation",
+				ylabel=objectives[index]
+			)
 
-		locs, labels = plt.xticks() 
+			xticks = list(range(len(populations)))
+			
+			#**calculations**
+			if "linemax" in args.plot_type.split():
+				ax.plot(list(range(len(populations))),[np.max([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="max")
+			if "lineavg" in args.plot_type.split():
+				ax.plot(list(range(len(populations))),[np.mean([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="mean")
+			if "linemin" in args.plot_type.split():
+				ax.plot(list(range(len(populations))),[np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
 
-		if "box" in args.plot_type.split():
-			plt.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
+			#locs, labels = ax.xticks() 
 
-		plt.xticks(locs)
+			if "box" in args.plot_type.split():
+				ax.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
 
-		plt.legend()
-		plt.title(titles[index])
-		plt.ylabel(objectives[index])
-		plt.xlabel("Generation")
-		ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+			#ax.xticks(locs)
 
-		index+=1
+			ax.legend()
+			ax.set_title(titles[index])
+			#ax.ylabel(objectives[index])
+			#ax.xlabel("Generation")
+			#ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+			index+=1
+
+		if args.plot_pdf!=None:
+			if not os.path.isdir(args.folder+"/results"):
+				os.mkdir(args.folder + "/results")
+			f.savefig(args.folder + "/results/" + args.plot_pdf, format="pdf")
+
+	if "matrix" in args.plot_type.split():
+		generate_plot_matrix()
 
 	if args.plot_pdf==None:
 		plt.show()
-	else:
-		if not os.path.isdir(args.folder+"/results"):
-			os.mkdir(args.folder + "/results")
-		plt.savefig(args.folder + "/results/" + args.plot_pdf, format="pdf")
 
 def is_dominated(fitness1,fitness2,invert=False):
 	fit1 = fitness1
@@ -139,9 +244,6 @@ def print_table(table):
 	dprint("-"*len(title))
 	rows = []
 
-	if args.reference_scenario!=None:
-		reference_scenario_data = load_reference_data(args.reference_scenario)
-
 	for ind in populations[table]:
 		dominated = []
 		dominating = []
@@ -176,18 +278,22 @@ def print_table(table):
 		dprint('|'+row_str)
 
 def execute_individual(pop,ind,rep=0):
+	"""
+	Execute the simulation corresponding to a specific individual, given its population and individual indexes. Makes use of the TJSumoTools library.
+	"""
 	TJS.execute_scenario(
-		"sumo-gui",
+		"sumo-gui",	#using the gui
 		("%s/ind%d_%s" % (
 			args.folder,
 			populations[pop][ind].candidate['ind'],
 			sumoScenario,
-		)),		("%s/ind%d_rep%d_%s" % (
+		)),		#pick the correct scenario
+		("%s/ind%d_rep%d_%s" % (
 			args.folder,
 			populations[pop][ind].candidate['ind'],
 			populations[pop][ind].candidate['rep'],
 			sumoScenario,
-		)),
+		)),		#pick the correct route file
 		sumoStepSize,
 		sumoPort,
 		False,	#no autostart
@@ -198,6 +304,7 @@ def execute_individual(pop,ind,rep=0):
 	)
 
 def __main__():
+	global reference_scenario_data
 	#Data loading section
 	if os.path.isdir(args.folder):
 		raw_files = os.listdir(args.folder)
@@ -223,6 +330,11 @@ def __main__():
 		else:
 			populations.append(None)
 		file_i +=1
+
+	if args.reference_scenario!=None:
+		reference_scenario_data = load_reference_data(args.reference_scenario)
+	elif "r" in args.matrix_plot.split():
+		print("\033[1;33;40mWARNING:\033[1;37;40m reference scenario not specific, but requested for matrix plot! It will not be shown.")
 
 	dprint("[ printing table of individuals ]")
 	print_table(int(args.table) % len(populations))
