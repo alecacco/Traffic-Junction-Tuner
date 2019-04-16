@@ -130,7 +130,7 @@ def generate_plot_matrix():
 						ax.scatter(
 							[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
 							[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
-							color="C"+str(color)
+							color="C"+str(color%10)
 						)
 					pareto_fronts.append(([ind[j] for ind in pareto2],[ind[i] for ind in pareto2]))
 				color = 0
@@ -151,6 +151,34 @@ def generate_plot_matrix():
 				ax.set_axis_off()
 				ax.text(0.5, 0.5, titles[i], ha="center", va="center", fontsize=25, wrap=True)	 
 			index+=1
+
+	#legend
+	ax = f.add_subplot(matrix_size,matrix_size,matrix_size)
+	top_offset = 0.05
+	line_height = 0.2
+
+	ax.axis("off")
+	ax.text(0,1-top_offset,"Legend:", va="top",wrap=True)
+
+	color = 0
+	for req_i in range(len(requested_gens)):
+		req = requested_gens[req_i]
+		ax.text(0,1-top_offset-(line_height*(req_i+1)),
+			"Generation " + str(req),
+			color="C"+str(color%10),
+			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
+		)
+		color+=1
+		if color==3:
+			color+=1
+
+	if references:
+		ax.text(0,1-top_offset-(line_height*(len(requested_gens)+1)),
+			"Reference individuals",
+			color="C"+str(color%10),
+			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
+		)
+
 
 
 	if args.plot_pdf!=None:
