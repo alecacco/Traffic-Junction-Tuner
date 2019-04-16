@@ -96,6 +96,8 @@ def generate_plot_matrix():
 
 	requested_gens = args.matrix_plot.split()
 	references = "r" in requested_gens
+	front_only = "f" in requested_gens
+
 	requested_gens = [int(r) for r in requested_gens if r.isdigit() or (r[0]=="-" and r[1:].isdigit())]
 
 	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
@@ -106,40 +108,44 @@ def generate_plot_matrix():
 			if i>j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)
 				color = 0
+				pareto_fronts = []
 				for gen in requested_gens:
-					population = [[populations[gen][c].fitness[o]*signs[o] for o in range(len(objectives))] for c in range(len(populations[gen]))]
-					pareto = get_pareto_front(population,[i,j])
-					ax.scatter(
-						[population[c][j] for c in range(len(population)) if population[c] not in pareto],
-						[population[c][i] for c in range(len(population)) if population[c] not in pareto],
-						color="C"+str(color),
-					)
-					ax.scatter(
-						[ind[j] for ind in pareto],
-						[ind[i] for ind in pareto],
-						marker="D",
-						color="C"+str(color),
-						edgecolors='r'
-					) 
+					population = [[ind.fitness[o]*signs[o] for o in range(len(objectives))] for ind in populations[gen]]
+					pareto1 = get_pareto_front(population,[i,j])
+					if not front_only:
+						ax.scatter(
+							[population[c][j] for c in range(len(population)) if population[c] not in pareto1],
+							[population[c][i] for c in range(len(population)) if population[c] not in pareto1],
+							color="C"+str(color%10),
+						)
+					pareto_fronts.append(([ind[j] for ind in pareto1],[ind[i] for ind in pareto1]))
 					color+=1
 					if color==3:
 						color+=1
 				if references:
 					ref_quantity = len(reference_scenario_data[0])
 					ref_gen = [[reference_scenario_data[o][c] for o in range(len(objectives))] for c in range(ref_quantity)]
-					pareto = get_pareto_front(ref_gen,[i,j])
+					pareto2 = get_pareto_front(ref_gen,[i,j])
+					if not front_only:
+						ax.scatter(
+							[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
+							[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
+							color="C"+str(color)
+						)
+					pareto_fronts.append(([ind[j] for ind in pareto2],[ind[i] for ind in pareto2]))
+				color = 0
+				for fr in pareto_fronts:
 					ax.scatter(
-						[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto],
-						[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto],
-						color="C"+str(color)
-					)
-					ax.scatter(
-						[ind[j] for ind in pareto],
-						[ind[i] for ind in pareto],
+						fr[0],
+						fr[1],
 						marker="D",
-						color="C"+str(color),
+						color="C"+str(color%10),
 						edgecolors='r'
-					)
+					) 
+					color+=1
+					if color==3:
+						color+=1
+
 			elif i==j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)
 				ax.set_axis_off()
