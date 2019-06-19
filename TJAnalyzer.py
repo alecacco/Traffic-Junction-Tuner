@@ -37,10 +37,10 @@ sumoDebug = False
 netconvertDebug = False
 
 #plotting paramenters
-titles = ["Average speed","Arrived","Teleported","Accidents"]
-objectives = ["+agv_speed","+arrived","-teleported","-accidents"]
-#titles = ["Arrived","Teleported","Accidents"]
-#objectives = ["+arrived","-teleported","-accidents"]
+#titles = ["Average speed","Arrived","Teleported","Accidents"]
+#objectives = ["+avg_speed","+arrived","-teleported","-accidents"]
+titles = ["Arrived","Teleported","Accidents"]
+objectives = ["+arrived","-teleported","-accidents"]
 signs = [+1 if obj[0]=="+" else -1 for obj in objectives]
 
 #scenario parameters

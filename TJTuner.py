@@ -85,16 +85,18 @@ sumo_output = args.sumo_output
 
 #other parameters
 ind = 0
-junctionNumber = 158# 998
+# junctionNumber = 158 #Bologna scenario
+# junctionNumber = 998 #Trento scenario
+junctionNumber = 3776 #Milan scenario
 
 folder = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
 os.mkdir(folder)
 
-with open(folder+"/launch", "w") as lauch_save:
+with open(folder+"/launch", "w") as launch_save:
 	launch_string = " "
 	for arg in sys.argv:
 		launch_string += str(arg)+" "
-	lauch_save.write("Launched with \""+launch_string+"\"")
+	launch_save.write("Launched with \""+launch_string+"\"")
 
 def clean_scenario():
 	nod = ET.parse(sumoScenario + ".nod.xml").getroot()
@@ -214,7 +216,7 @@ class TJBenchmark(benchmarks.Benchmark):
 
 			for res_set in range(len(raw_results)/sumoRandomRoutes):
 				avg_res = {}
-				for k in ["accidents","arrived","teleported","agv_speed"]:
+				for k in ["accidents","arrived","teleported","avg_speed"]:
 					avg_res[k] = np.mean([resrep[k] for resrep in raw_results[sumoRandomRoutes*res_set:sumoRandomRoutes*(res_set+1)]])
 				results.append(avg_res)
 
@@ -385,7 +387,7 @@ class TJTBounder(object):
 		
 if __name__ ==  "__main__":
 
-	problem = TJBenchmark(objectives=["+agv_speed","+arrived","-teleported","-accidents"])
+	problem = TJBenchmark(objectives=["+avg_speed","+arrived","-teleported","-accidents"])
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
 	margs["crossoverRate"] = args.crossover_rate

@@ -9,10 +9,15 @@ import xml.dom.minidom as minidom
 from threading import RLock
 from threading import Thread
 
+#import TJSumoTraciDefinitions as tracidef
 
 debug = True
 hang = False
 pollingTime = 1
+
+#TODO
+#retrieve once per simstep single value
+#tracirequests = []
 
 FNULL = open(os.devnull, 'w')
 
@@ -59,7 +64,8 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 		accidents = 0
 		arrived = 0
 		teleported = 0
-		agv_speeds = []
+		avg_speeds = []
+		sum_fuel_consumption = []
 
 		stepsLeft = end
 		while(stepsLeft>=0):
@@ -74,10 +80,11 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 
 				vehicleIDs = t.vehicle.getIDList()
 				if len(vehicleIDs)>0:
-					agv_speeds.append(np.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
+					avg_speeds.append(np.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
+					sum_fuel_consumption.append(np.sum([t.vehicle.getFuelConsumption(veh) for veh in vehicleIDs]))
 
 		if dataCollection:
-			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,np.mean(agv_speeds)))
+			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,np.mean(avg_speeds)))
 		else:
 			dprint("[ simulation completed with no data collection ]")
 		
@@ -88,7 +95,8 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 			"accidents":accidents, 
 			"arrived":arrived, 
 			"teleported":teleported, 
-			"agv_speed":np.mean(agv_speeds)
+			"avg_speed":np.mean(avg_speeds),
+			"sum_fuel_consumption":np.sum(sum_fuel_consumption)
 		})	
 	else:
 		dprint("[ simulation launched and running ]")
@@ -260,7 +268,7 @@ def execute_scenarios(parametersList, jobs, port):
 		accidents = 0
 		arrived = 0
 		teleported = 0
-		agv_speeds = []
+		avg_speeds = []
 			\->avg_speed = ##
 	'''
 
@@ -300,7 +308,7 @@ def execute_scenarios(parametersList, jobs, port):
 				"accidents": 0,
 				"arrived": 0,
 				"teleported": 0,
-				"agv_speeds": []	
+				"avg_speeds": []	
 			}
 			thread = Thread(target = advance_simulation, args = (simid_inc, processes[simid_inc],results_d,lock))
 			thread.start()
@@ -360,7 +368,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 
 			vehicleIDs = procinfo["traci"].vehicle.getIDList()
 			if len(vehicleIDs)>0:
-				procinfo["agv_speeds"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+				procinfo["avg_speeds"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
 	
 	procinfo["traci"].close()
 
@@ -370,7 +378,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 			"accidents":procinfo["accidents"], 
 			"arrived":procinfo["arrived"], 
 			"teleported":procinfo["teleported"], 
-			"agv_speed":np.mean(procinfo["agv_speeds"])
+			"avg_speed":np.mean(procinfo["avg_speeds"])
 		}						
 	finally:
 		lock.release()
