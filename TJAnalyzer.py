@@ -4,9 +4,9 @@ import argparse
 parser = argparse.ArgumentParser(description="Traffic Junction Optimizer - Result Analyzer.")
 parser.add_argument("-f","--folder", type=str, help="Result folder to analyze", required=True)
 parser.add_argument("-r","--run", type=int, help="Re-run the simulation of a specific individual (default is 0)", required=False, default=0)
-parser.add_argument("-pg","--pick-generation", type=str, help="re-simulate a populaton, select which generation (default is last one)", required=False, default=-1)
-parser.add_argument("-pi","--pick-individual", type=str, help="re-simulate a populaton, select which individual (default is individual 0)", required=False, default=0)
-parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a populaton, select which repetition of the individual (default is repetition 0)", required=False, default=0)
+parser.add_argument("-pg","--pick-generation", type=str, help="re-simulate a population, select which generation (default is last one)", required=False, default=-1)
+parser.add_argument("-pi","--pick-individual", type=str, help="re-simulate a population, select which individual (default is individual 0)", required=False, default=0)
+parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a population, select which repetition of the individual (default is repetition 0)", required=False, default=0)
 parser.add_argument("-pl","--plot", type=int, help="Plot objective throughout generations", required=False, default=1)
 parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"matrix\",\"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
 parser.add_argument("-pp","--plot-pdf", type=str, help="Pdf file name in which plots are are saved (if requested) instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
@@ -342,7 +342,7 @@ def execute_individual(pop,ind,rep=0):
 		sumoDebug
 	)
 
-def __main__():
+def main():
 	global reference_scenario_data
 	#Data loading section
 	if os.path.isdir(args.folder):
@@ -356,24 +356,32 @@ def __main__():
 
 	files.sort(key=get_no)
 
-	allowed_populations = None
-	if (args.plot==0):
-		allowed_populations = list(set([int(args.pick_generation)%len(files), int(args.table)%len(files)]))
+	allowed_populations = set()
+	allowed_populations = allowed_populations.union(set([int(args.pick_generation)%len(files), int(args.table)%len(files)]))
+	if "matrix" in args.plot_type.split(" "):
+		allowed_populations = allowed_populations.union(set([int(ind)%len(files) for ind in args.matrix_plot.split(" ") if ind.isdigit()]))
+	if "box" in args.plot_type.split(" "):
+		allowed_populations = allowed_populations.union(set(range(len(files))))
 
+	allowed_populations = list(allowed_populations)
+	print(allowed_populations)
+	
 	file_i = 0
 	for file in files:
-		if allowed_populations==None or (file_i in allowed_populations):
+		if file_i in allowed_populations:
 			f = open(args.folder+"/"+file,'rb')
 			dprint("loading "+file[:-4])
 			populations.append(pickle.load(f))
 		else:
 			populations.append(None)
 		file_i +=1
-
+	print(len([p==None for p in populations]))
+	
 	if args.reference_scenario!=None:
 		reference_scenario_data = load_reference_data(args.reference_scenario)
-	elif "r" in args.matrix_plot.split():
+	elif ("r" in args.matrix_plot.split(" ")) and ("matrix" in args.plot_type.split()):
 		print("\033[1;33;40mWARNING:\033[1;37;40m reference scenario not specific, but requested for matrix plot! It will not be shown.")
+		args.plot_type = " ".join([pt for pt in args.plot_type.split() if pt!="matrix"])
 
 	dprint("[ printing table of individuals ]")
 	print_table(int(args.table) % len(populations))
@@ -391,5 +399,5 @@ def __main__():
 		execute_individual(int(args.pick_generation),int(args.pick_individual),rep=int(args.pick_repetition))
 
 if __name__ == "__main__":
-	__main__()
+	main()
 
