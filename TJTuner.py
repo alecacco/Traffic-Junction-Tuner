@@ -19,7 +19,7 @@ parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdo
 parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
 parser.add_argument("-j","--jobs", type=int, help="Simulation parallelization. Allow for individuals to be simulated simultaneously. Default is 1", default = 1)
 parser.add_argument("-rr","--random-routes", type=int, help="Randomize routes for each simulation. Default is 1 (no randomization, one simulation per individual), values higher than 1 implies multiple repetitions.", default = 1)
-parser.add_argument("-rf","--route-frequency", type=int, help="Repetition rate, needed to generate random routes with the Sumo integrated randomTrips.py script. Value in seconds, default 2", default = 1)
+parser.add_argument("-rf","--route-frequency", type=float, help="Repetition rate, needed to generate random routes with the Sumo integrated randomTrips.py script. Value in seconds, default 2", default = 1)
 parser.add_argument("-rx","--route-file", type=str, help="Force non randomized routes, use a specific route file", default=None)#trento_2")
 #TODO add seeds and randomization for bot sumo simulation and netconvert route generation, also manage the seed loading in TJAnalyzer to repeat the exact individual
 

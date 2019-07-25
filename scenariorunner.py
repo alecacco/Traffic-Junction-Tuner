@@ -11,7 +11,7 @@ parser.add_argument("-r","--repetitions",type=int, help="Number of repetitions",
 parser.add_argument("-j","--jobs",type=int, help="Number of jobs", required=True)
 parser.add_argument("-o","--output",type=str, help="Output file name, located in $folder ", required=True)
 parser.add_argument("-e","--end",type=int, help="Sumo end time, default 3600", default = 3600)
-parser.add_argument("-rf","--route-frequency",type=int, help="Route genration frequency, default is 2", default = 2)
+parser.add_argument("-rf","--route-frequency",type=float, help="Route genration frequency, default is 2", default = 2)
 
 args = parser.parse_args()
 

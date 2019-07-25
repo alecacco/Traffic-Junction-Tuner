@@ -29,7 +29,7 @@ dprint = TJS.dprint
 
 files = []
 populations = []
-reference_scenario_data = None
+reference_scenarios_data = None
 
 #debug output
 TJS.debug = True
@@ -123,16 +123,22 @@ def generate_plot_matrix():
 					if color==3:
 						color+=1
 				if references:
-					ref_quantity = len(reference_scenario_data[0])
-					ref_gen = [[reference_scenario_data[o][c] for o in range(len(objectives))] for c in range(ref_quantity)]
-					pareto2 = get_pareto_front(ref_gen,[i,j])
-					if not front_only:
-						ax.scatter(
-							[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
-							[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
-							color="C"+str(color%10)
-						)
-					pareto_fronts.append(([ind[j] for ind in pareto2],[ind[i] for ind in pareto2]))
+					for rs in range(len(reference_scenarios_data)):
+						reference_scenario_data = reference_scenarios_data[rs]
+						ref_quantity = len(reference_scenario_data[0])
+						ref_gen = [[reference_scenario_data[o][c] for o in range(len(objectives))] for c in range(ref_quantity)]
+						pareto2 = get_pareto_front(ref_gen,[i,j])
+						if not front_only:
+							ax.scatter(
+								[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
+								[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
+								color="C"+str(color%10)
+							)
+						pareto_fronts.append(([ind[j] for ind in pareto2],[ind[i] for ind in pareto2]))
+						color+=1
+						if color==3:
+							color+=1
+
 				color = 0
 				for fr in pareto_fronts:
 					ax.scatter(
@@ -172,12 +178,15 @@ def generate_plot_matrix():
 		if color==3:
 			color+=1
 
-	if references:
-		ax.text(0,1-top_offset-(line_height*(len(requested_gens)+1)),
-			"Reference individuals",
+	for rs in range(len(reference_scenarios_data)):
+		ax.text(0,1-top_offset-(line_height*(len(requested_gens)+1+rs)),
+			"Reference individuals "+str(rs),
 			color="C"+str(color%10),
 			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
 		)
+		color+=1
+		if color==3:
+			color+=1
 
 
 
@@ -270,10 +279,13 @@ def count_dominated(fitness1,fitnesses,invert=False):
 
 	return(str(count)+"/"+str(len(rearranged_fitnesses)))
 
-def load_reference_data(ref_filename):
-	with open(ref_filename, 'rb') as ref_file:
-		reference_scenario_data = pickle.load(ref_file)
-	return [[refrep[obj[1:]] for refrep in reference_scenario_data] for obj in objectives]
+def load_reference_data(ref_filenames):
+	res = []
+	for ref_filename in ref_filenames:
+		with open(ref_filename, 'rb') as ref_file:
+			reference_scenario_data = pickle.load(ref_file)
+		res.append([[refrep[obj[1:]] for refrep in reference_scenario_data] for obj in objectives])
+	return res
 
 #Table printing procedure
 def print_table(table):
@@ -284,10 +296,11 @@ def print_table(table):
 	rows = []
 
 	for ind in populations[table]:
-		dominated = []
-		dominating = []
+		dominated = []#[[] for _ in range(len(reference_scenarios_data))]
+		dominating = []#[[] for _ in range(len(reference_scenarios_data))]
 		#print([[data[i]*signs[i] for i in range(len(objectives))] for data in reference_scenario_data])
-		if args.reference_scenario!=None:
+		for rs in range(len(reference_scenarios_data)):
+			reference_scenario_data = reference_scenarios_data[rs]
 			dominated.append(count_dominated(
 				[ind.fitness[i] for i in range(len(objectives))], 
 				[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)]
@@ -304,7 +317,12 @@ def print_table(table):
 	if args.reference_scenario==None:
 		rows = [["pop_ind"]+titles+["actual_ind"]]+rows
 	else:
-		rows = [["pop_ind"]+titles+["actual_ind","dominated","dominating"]]+rows
+		print("CHECK")
+		firstrow = ["pop_ind"]+titles+["actual_ind"]
+		for i in range(len(reference_scenarios_data)):
+			firstrow += ["dominated_"+str(i),"dominating_"+str(i)]
+		rows = [firstrow] + rows
+	print(rows)
 
 	rows = rows[:1] + [["-" * len(header) for header in rows[0]]] + rows[1:]
 	rows += rows[1:2]
@@ -343,7 +361,7 @@ def execute_individual(pop,ind,rep=0):
 	)
 
 def main():
-	global reference_scenario_data
+	global reference_scenarios_data
 	#Data loading section
 	if os.path.isdir(args.folder):
 		raw_files = os.listdir(args.folder)
@@ -378,7 +396,7 @@ def main():
 	print(len([p==None for p in populations]))
 	
 	if args.reference_scenario!=None:
-		reference_scenario_data = load_reference_data(args.reference_scenario)
+		reference_scenarios_data = load_reference_data(args.reference_scenario.split(" "))
 	elif ("r" in args.matrix_plot.split(" ")) and ("matrix" in args.plot_type.split()):
 		print("\033[1;33;40mWARNING:\033[1;37;40m reference scenario not specific, but requested for matrix plot! It will not be shown.")
 		args.plot_type = " ".join([pt for pt in args.plot_type.split() if pt!="matrix"])
