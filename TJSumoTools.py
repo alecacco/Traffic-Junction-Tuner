@@ -25,7 +25,7 @@ FNULL = open(os.devnull, 'w')
 def dprint(s):
 	s=str(s)
 	if debug or not (s.split()[0]=="[" and s.split()[-1]=="]"):
-		print(s)
+		print("TJS>\t"+s)
 
 #custom xml writer function
 def write_xml(root,location):
