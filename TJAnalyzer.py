@@ -11,10 +11,10 @@ parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a pop
 parser.add_argument("-pl","--plot", type=int, help="Plot objective throughout generations", required=False, default=1)
 parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"matrix\",\"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
 parser.add_argument("-pp","--plot-pdf", type=str, help="Pdf file name in which plots are are saved (if requested) instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
-parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", required=False, default="-1")
-parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv file to compare the data to.", required=False, default=None)
-parser.add_argument("-mp","--matrix-plot", type=str, help="Select what generations to plot in the matrix plot (if requested). Provide a string with all the requested generations separated by a space. Default is -1", required=False, default="-1")
-parser.add_argument("-st","--save-table", type=str, help="Select generations table to save in csv format. Provide a string with all the requests separated by a space. Default is \"-1\".", required=False, default="-1")
+parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", default="-1")
+parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv file to compare the data to.", required=False)
+parser.add_argument("-mp","--matrix-plot", type=str, help="Select what generations to plot in the matrix plot (if requested). Provide a string with all the requested generations separated by a space.", required=False)
+parser.add_argument("-st","--save-table", type=str, help="Select generations table to save in csv format. Provide a string with all the requests separated by a space.", required=False)
 #TODO [...] Use \"t\", \"pg\" and/or \"mp\" to include generations specified for other parameters. Provide a string with all the requests separated by a space. Default is \"t\".", required=False, default="t")
 
 args = parser.parse_args()
@@ -37,6 +37,7 @@ def dprint(s):
 files = []
 populations = []
 reference_scenarios_data = None
+res_storage = None
 
 #debug output
 TJS.debug = True
@@ -46,16 +47,17 @@ netconvertDebug = False
 #plotting paramenters
 #titles = ["Average speed","Arrived","Teleported","Accidents"]
 #objectives = ["+avg_speed","+arrived","-teleported","-accidents"]
-titles = ["Arrived","Teleported","Accidents"]
-objectives = ["+arrived","-teleported","-accidents"]
-signs = [+1 if obj[0]=="+" else -1 for obj in objectives]
+titles = []
+objectives = []
+additional_info = []
+signs = []
 
 #scenario parameters
 sumoScenario = "trento"
 sumoPort = 27910
 sumoEnd = 3600
 sumoDelay = 0.1
-sumoStepSize = 0.1
+sumoStepSize = 1
 
 #reordering function for population sorting
 def get_no(e):
@@ -306,27 +308,41 @@ def print_table(table):
 	for ind in populations[table]:
 		dominated = []
 		dominating = []
-		for rs in range(len(reference_scenarios_data)):
-			reference_scenario_data = reference_scenarios_data[rs]
-			dominated.append(count_dominated(
-				[ind.fitness[i] for i in range(len(objectives))], 
-				[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)]
-			))
-			dominating.append(count_dominated(
-				[ind.fitness[i] for i in range(len(objectives))], 
-				[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
-				invert=True
-			))
-		rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+dominated+dominating)
+		if reference_scenarios_data != None:
+			for rs in range(len(reference_scenarios_data)):
+				reference_scenario_data = reference_scenarios_data[rs]
+				dominated.append(count_dominated(
+					[ind.fitness[i] for i in range(len(objectives))], 
+					[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)]
+				))
+				dominating.append(count_dominated(
+					[ind.fitness[i] for i in range(len(objectives))], 
+					[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
+					invert=True
+				))
+		rows.append(
+			[
+				ind.fitness[i]*signs[i] 
+				for i in range(len(objectives))
+			] + \
+			[ind.candidate["ind"]] + \
+			dominated + \
+			dominating + \
+			[
+				[r for k,r in res_storage.items() if r["ind"]==ind.candidate["ind"]][0][a]
+				for a in additional_info
+			]
+		)
 	
 	rows = [[i]+rows[i] for i in range(len(rows))]
 	
 	if args.reference_scenario==None:
-		rows = [["pop_ind"]+titles+["actual_ind"]]+rows
+		rows = [["pop_ind"]+titles+["actual_ind"]+additional_info]+rows
 	else:
 		firstrow = ["pop_ind"]+titles+["actual_ind"]
 		for i in range(len(reference_scenarios_data)):
 			firstrow += ["dominated_"+str(i),"dominating_"+str(i)]
+		firstrow += additional_info 
 		rows = [firstrow] + rows
 
 	rows = rows[:1] + [["-" * len(header) for header in rows[0]]] + rows[1:]
@@ -336,7 +352,7 @@ def print_table(table):
 	for r_i in range(len(rows)):
 		row_str = ""
 		for e_i in range(len(rows[r_i])):
-			row_str = row_str+('{:^'+str(max([len(str(rows[r][e_i])) for r in range(len(rows))])+2)+'}|').format(rows[r_i][e_i])
+			row_str = row_str + ('{:^'+ str(max([len(str(rows[r][e_i])) for r in range(len(rows))])+2)+'}|').format(rows[r_i][e_i])
 		dprint('|'+row_str)
 
 def save_tables():
@@ -349,17 +365,18 @@ def save_tables():
 		for ind in populations[table]:
 			dominated = []
 			dominating = []
-			for rs in range(len(reference_scenarios_data)):
-				reference_scenario_data = reference_scenarios_data[rs]
-				dominated.append(count_dominated(
-					[ind.fitness[i] for i in range(len(objectives))], 
-					[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)]
-				))
-				dominating.append(count_dominated(
-					[ind.fitness[i] for i in range(len(objectives))], 
-					[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
-					invert=True
-				))
+			if reference_scenarios_data != None:
+				for rs in range(len(reference_scenarios_data)):
+					reference_scenario_data = reference_scenarios_data[rs]
+					dominated.append(count_dominated(
+						[ind.fitness[i] for i in range(len(objectives))], 
+						[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)]
+					))
+					dominating.append(count_dominated(
+						[ind.fitness[i] for i in range(len(objectives))], 
+						[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
+						invert=True
+					))
 			rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+dominated+dominating)
 		
 		rows = [[i]+rows[i] for i in range(len(rows))]
@@ -406,7 +423,15 @@ def execute_individual(pop,ind,rep=0):
 	)
 
 def main():
-	global reference_scenarios_data
+	global reference_scenarios_data,objectives,res_storage,signs,titles,additional_info
+
+	dprint("[ Loading results storage ]")
+	res_storage = pickle.load(open(args.folder+"/results_storage.pkl"))
+	objectives = [o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind"] and o[0] in ["+","-"]]
+	additional_info = [o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind"] and o[0] not in ["+","-"]]
+	titles = objectives
+	signs = [+1 if obj[0]=="+" else -1 for obj in objectives]
+	dprint(" Objectives loaded: %s"%(str(objectives)))
 
 	dprint("[ Loading population data ]")
 	#Data loading section
@@ -425,7 +450,8 @@ def main():
 
 	allowed_populations = set()
 	allowed_populations = allowed_populations.union(set([int(args.pick_generation)%len(files), int(args.table)%len(files)]))
-	allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.save_table.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit()) ]))
+	if args.save_table!=None:
+		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.save_table.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit()) ]))
 	if "matrix" in args.plot_type.split(" "):
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.matrix_plot.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())]))
 	if "box" in args.plot_type.split(" "):
@@ -443,12 +469,11 @@ def main():
 		else:
 			populations.append(None)
 		file_i +=1
-	print(len([p==None for p in populations]))
 	
 	dprint("[ \tChecking reference scenario request ]")
-	if args.reference_scenario!=None:
+	if args.reference_scenario != None:
 		reference_scenarios_data = load_reference_data(args.reference_scenario.split(" "))
-	elif ("r" in args.matrix_plot.split(" ")) and ("matrix" in args.plot_type.split()):
+	elif args.matrix_plot!=None and ("r" in args.matrix_plot.split(" ")) and ("matrix" in args.plot_type.split()):
 		print("\033[1;33;40mWARNING:\033[1;37;40m reference scenario not specific, but requested for matrix plot! It will not be shown.")
 		args.plot_type = " ".join([pt for pt in args.plot_type.split() if pt!="matrix"])
 
@@ -456,7 +481,8 @@ def main():
 	print_table(int(args.table) % len(populations))
 
 	dprint("[ saving requested tables of individuals ]")
-	save_tables()
+	if args.save_table!=None:
+		save_tables()
 
 	if args.plot==1:
 		dprint("[ plotting fitnesses ]")

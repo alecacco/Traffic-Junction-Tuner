@@ -21,7 +21,7 @@ pollingTime = 1
 
 FNULL = open(os.devnull, 'w')
 
-#custom print function which deletes [ * ] with debug mode disabled
+#custom print function which doesn't log strings like [ * ] with debug mode disabled
 def dprint(s):
 	s=str(s)
 	if debug or not (s.split()[0]=="[" and s.split()[-1]=="]"):
@@ -33,19 +33,26 @@ def write_xml(root,location):
 	with open(location,"w") as f:
 		f.write(prettyttl.encode("utf8"))
 
-def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,dataCollection,debug,wait=True):
+def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,debug,seed,objectives=[],wait=True):
 	dprint("[ launching simulation on port "+ str(port) + "... ]")
-	sumoAutoStart=""
-	if autostart==True:
-		sumoAutoStart=" --start"
+	sumoAutoStart = ""
+	if autostart == True:
+		sumoAutoStart = " --start"
+	sumoRandom = ""
+	if seed=="-1":
+		sumoRandom = " --random"
+	else:
+		sumoRandom = " --seed " +str(seed)
+
 	sumoLaunch = str(launch
 		+" -n " + scenario +".net.xml"
 		+" -r " + routes + ".rou.xml" 
 		+ sumoAutoStart
+		+ sumoRandom
 		+" -Q" 
 		+ " --step-length " + ("%.2f" % step_size) 
 		+ " --remote-port " + str(port)
-		#TODO PSEUDO-RANDOM SEED
+		#TODO PSEUDO-RANDOM SEED (seed parameter)
 	).split(" ")
 
 	if (debug):
@@ -73,17 +80,23 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 			t.simulationStep()
 			if delay > 0:
 				time.sleep(delay)
-			if dataCollection:
-				accidents += t.simulation.getCollidingVehiclesNumber()
-				arrived += t.simulation.getArrivedNumber()
-				teleported += t.simulation.getStartingTeleportNumber()
+			if len(objectives)>0:
+				if "accidents" in objectives:
+					accidents += t.simulation.getCollidingVehiclesNumber()
+				if "arrived" in objectives:
+					arrived += t.simulation.getArrivedNumber()
+				if "teleported" in objectives:
+					teleported += t.simulation.getStartingTeleportNumber()
 
-				vehicleIDs = t.vehicle.getIDList()
-				if len(vehicleIDs)>0:
-					avg_speeds.append(np.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
-					sum_fuel_consumption.append(np.sum([t.vehicle.getFuelConsumption(veh) for veh in vehicleIDs]))
+				if "fuel" in objectives or "avg_speed" in objectives:
+					vehicleIDs = t.vehicle.getIDList()
+					if len(vehicleIDs)>0:
+						if "avg_speed" in objectives:
+							avg_speeds.append(np.mean([t.vehicle.getSpeed(veh) for veh in vehicleIDs]))
+						if "fuel" in objectives:
+							sum_fuel_consumption.append(np.sum([t.vehicle.getFuelConsumption(veh) for veh in vehicleIDs]))
 
-		if dataCollection:
+		if len(objectives)>0:
 			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,np.mean(avg_speeds)))
 		else:
 			dprint("[ simulation completed with no data collection ]")
@@ -294,8 +307,9 @@ def execute_scenarios(parametersList, jobs, port):
 				parameterSet["sumoAutoStart"],
 				parameterSet["sumoEnd"],
 				parameterSet["sumoDelay"],
-				parameterSet["dataCollection"],
 				parameterSet["sumoOutput"],
+				parameterSet["sumoSeed"],
+				objectives = parameterSet["objectives"],
 				wait=False
 			)
 			processes[simid_inc]={
@@ -304,11 +318,12 @@ def execute_scenarios(parametersList, jobs, port):
 				"sumoPort": usable_port,
 				"stepsLeft": parameterSet['sumoEnd'],
 				"sumoDelay": parameterSet["sumoDelay"],
-				"dataCollection": parameterSet["dataCollection"],				
+				"objectives": parameterSet["objectives"],
 				"accidents": 0,
 				"arrived": 0,
 				"teleported": 0,
-				"avg_speeds": []	
+				"avg_speed": [],
+				"fuel": []
 			}
 			thread = Thread(target = advance_simulation, args = (simid_inc, processes[simid_inc],results_d,lock))
 			thread.start()
@@ -361,25 +376,34 @@ def advance_simulation(simid, procinfo, results_d, lock):
 		procinfo["traci"].simulationStep()
 		if procinfo["sumoDelay"] > 0:
 			time.sleep(procinfo["sumoDelay"])
-		if procinfo["dataCollection"]:
-			procinfo["accidents"] += procinfo["traci"].simulation.getCollidingVehiclesNumber()
-			procinfo["arrived"] += procinfo["traci"].simulation.getArrivedNumber()
-			procinfo["teleported"] += procinfo["traci"].simulation.getStartingTeleportNumber()
+		if len(procinfo["objectives"])>0:
+			if "accidents" in procinfo["objectives"]:
+				procinfo["accidents"] += procinfo["traci"].simulation.getCollidingVehiclesNumber()
+			if "arrived" in procinfo["objectives"]:
+				procinfo["arrived"] += procinfo["traci"].simulation.getArrivedNumber()
+			if "teleported" in procinfo["objectives"]:
+					procinfo["teleported"] += procinfo["traci"].simulation.getStartingTeleportNumber()
 
-			vehicleIDs = procinfo["traci"].vehicle.getIDList()
-			if len(vehicleIDs)>0:
-				procinfo["avg_speeds"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+			if "fuel" in procinfo["objectives"] or "avg_speed" in procinfo["objectives"] or "var_speeds" in procinfo["objectives"]:
+				vehicleIDs = procinfo["traci"].vehicle.getIDList()
+				if len(vehicleIDs)>0:
+					if "avg_speed" in procinfo["objectives"]:
+						procinfo["avg_speed"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+					if "var_speeds" in procinfo["objectives"]:
+						procinfo["avg_speed"].append(np.var([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+					if "fuel" in procinfo["objectives"]:
+						procinfo["fuel"].append(np.sum([procinfo["traci"].vehicle.getFuelConsumption(veh) for veh in vehicleIDs]))
 	
 	procinfo["traci"].close()
 
 	lock.acquire()
 	try:
-		results_d[simid]={
-			"accidents":procinfo["accidents"], 
-			"arrived":procinfo["arrived"], 
-			"teleported":procinfo["teleported"], 
-			"avg_speed":np.mean(procinfo["avg_speeds"])
-		}						
+		results_d[simid]={}
+		for k in procinfo["objectives"]:
+			if type(procinfo[k])==list:
+				results_d[simid][k] = np.mean(procinfo[k])
+			else:
+				results_d[simid][k] = procinfo[k]
 	finally:
 		lock.release()
 

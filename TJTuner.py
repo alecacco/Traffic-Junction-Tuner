@@ -2,38 +2,117 @@
 
 #argparse stuff
 import argparse
+import random
 parser = argparse.ArgumentParser(description="Traffic Junction Optimizer.")
 
 #Simulation parameters
-parser.add_argument("-g","--generations", type=int, help="number of generation for the genetic algorithm", default=1)
-parser.add_argument("-l","--launch", type=str, help="Sumo executable to use. E.G. \"sumo\" or \"sumo-gui\". Default is \"sumo\"", default="sumo")
-parser.add_argument("-p","--port", type=int, help="TraCI connection port to Sumo. Default is 27910", default=27910)
-parser.add_argument("-s","--scenario", type=str, help="Scenario prefix - uses standard Scenario file extension", default="trento")
-parser.add_argument("-d","--debug", type=int, help="Set to 1 to see debug output. Default is 1", default=0)
-parser.add_argument("-a","--autostart", type=int, help="Set to 1 to start the simulation automatically. Default is 1", default=0)
-parser.add_argument("-e","--end", type=int, help="Simulation duration in step number. Default is 3600.", default=3600)
-parser.add_argument("-sd","--step-delay", type=float, help="Delay of each step, useful for GUI demostrations. Default is 0", default=0)
-parser.add_argument("-ss","--step-size", type=float, help="Simulation step size. Default is 0.1", default=0.01)
-parser.add_argument("-ha","--hang", type=int, help="Set to 1 to hang the program before the simulation, in order to manually connect to problematic scenarios via TraCI", default=0)
-parser.add_argument("-so","--sumo-output", type=int, help="Enable simulator stdout/stderr. WARNING: simulation are _considerably_ verbose.", default = 0)
-parser.add_argument("-no","--netconvert-output", type=int, help="Enable netconvert stdout/stderr.", default = 0)
-parser.add_argument("-j","--jobs", type=int, help="Simulation parallelization. Allow for individuals to be simulated simultaneously. Default is 1", default = 1)
-parser.add_argument("-rr","--random-routes", type=int, help="Randomize routes for each simulation. Default is 1 (no randomization, one simulation per individual), values higher than 1 implies multiple repetitions.", default = 1)
-parser.add_argument("-rf","--route-frequency", type=float, help="Repetition rate, needed to generate random routes with the Sumo integrated randomTrips.py script. Value in seconds, default 2", default = 1)
-parser.add_argument("-rx","--route-file", type=str, help="Force non randomized routes, use a specific route file", default=None)#trento_2")
+parser.add_argument("-g","--generations", type=int, 
+	help="number of generation for the genetic algorithm", 
+	default=1)
+parser.add_argument("-l","--launch", type=str, 
+	help="Sumo executable to use. E.G. \"sumo\" or \"sumo-gui\". Default is \
+	\"sumo\"", default="sumo")
+parser.add_argument("-p","--port", type=int, 
+	help="TraCI connection port to Sumo. Default is 27910", 
+	default=27910)
+parser.add_argument("-s","--scenario", type=str, 
+	help="Scenario prefix - uses standard Scenario file extension", 
+	default="trento")
+parser.add_argument("-d","--debug", type=int, 
+	help="Set to 1 to see debug output. Default is 1", 
+	default=0)
+parser.add_argument("-a","--autostart", type=int, 
+	help="Set to 1 to start the simulation automatically. Default is 1", 
+	default=0)
+parser.add_argument("-e","--end", type=int, 
+	help="Simulation duration in step number. Default is 3600.", 
+	default=3600)
+parser.add_argument("-sd","--step-delay", type=float, 
+	help="Delay of each step, useful for GUI demostrations. Default is 0", 
+	default=0)
+parser.add_argument("-ss","--step-size", type=float, 
+	help="Simulation step size. Default is 0.1", 
+	default=0.01)
+parser.add_argument("-ha","--hang", type=int, 
+	help="Set to 1 to hang the program before the simulation, in order to \
+	manually connect to problematic scenarios via TraCI", 
+	default=0)
+parser.add_argument("-so","--sumo-output", type=int, 
+	help="Enable simulator stdout/stderr. WARNING: simulation are \
+	_considerably_ verbose.", 
+	default = 0)
+parser.add_argument("-no","--netconvert-output", type=int, 	help="Enable \
+	netconvert stdout/stderr.", 
+	default = 0)
+parser.add_argument("-j","--jobs", type=int, 
+	help="Simulation parallelization. Allow for individuals to be simulated \
+	simultaneously. Default is 1", 
+	default = 1)
+parser.add_argument("-rr","--random-routes", type=int, 
+	help="Randomize routes for each simulation. Default is 1 (one route \
+	per individual).", 
+	default = 1)
+parser.add_argument("-srr","--single-route-repetitions", type=str, 
+	help="Random repetition of the simulation for each generated route \
+	(of each individual). If multiple repetitions are requested, multiple \
+	simulation on each route will be performed, each with a different seed. \
+	Use \"R\" to use sumo --random option instead of TJT seeds. \
+	Default is 1.", 
+	default = "1")
+parser.add_argument("-tr","--traffic-rates", type=str, 	help="Traffic rates, \
+	needed to generate random routes with the Sumo integrated randomTrips.py \
+	script. Values in seconds, separated by a space, default \"1.5 2 2.5 3\"", 
+	default = 2)
+parser.add_argument("-rx","--route-file", type=str, help="Force non randomized \
+	routes, use a specific route file", 
+	default=None)
 #TODO add seeds and randomization for bot sumo simulation and netconvert route generation, also manage the seed loading in TJAnalyzer to repeat the exact individual
 
 #Genetic algorithm paramenters
-parser.add_argument("-mr","--mutation-rate", type=float, help="Rate of mutation. Default is 0.1", default=0.1)
-parser.add_argument("-of","--offspring", type=int, help="Maximun number of offspring. Default is 2", default=2)
-parser.add_argument("-cr","--crossover-rate", type=float, help="Rate of crossover. Default is 0.8", default=0.8)
-parser.add_argument("-ps","--pop-size", type=int, help="Population size, 5 as default", default=5)
+parser.add_argument("-mr","--mutation-rate", type=float, 
+	help="Rate of mutation. Default is 0.1", 
+	default=0.1)
+parser.add_argument("-of","--offspring", type=int, 
+	help="Maximun number of offspring. Default is 2", 
+	default=2)
+parser.add_argument("-cr","--crossover-rate", type=float, 
+	help="Rate of crossover. Default is 0.8", 
+	default=0.8)
+parser.add_argument("-ps","--pop-size", type=int, 
+	help="Population size, 5 as default", 
+	default=5)
+parser.add_argument("-cobj","--complex-objectives", type=str, 
+	help="Objectives of the evolutionary algorithm.\
+	Fitness for these objectives will be calculated from simulation \
+	results, taking mean, variance, worst or best. Use respectively \"M\"\
+	, \"V\", \"W\", \"B\" in some signed 2-sized combination followed by an \
+	objective definition. Put \"+\", \"-\" or \"*\" before to specify if the \
+	objective should be minimized, maximized or collected but not used for \
+	fitness. E.g. \"+WBarrived\" to minimize the arrived vehicles of the worst \
+	traffic frequency considering the best repetition, or \"-VMarrived\" to \
+	maximize the variance or arrived vehicles among traffic frequencies, \
+	considering the best achieved repetition. Default is \"-MMarrived \
+	+MMteleport +MMaccidents\". Avalable objectives identifiers are \
+	\"arrived\", \"teleport\", \"accidents\", \"avg_speed\", \"fuel\"",
+	default="-MMarrived	+MMteleport +MMaccidents")
+parser.add_argument("-nf","--normalize-fitness", type=int, 
+	help="Automatically normalize fitness values if set to  1. Default is 1.", 
+	default=1)
+
 
 #Boundaries parameters
-parser.add_argument("-y_min","--yellow_min", type=int, help="Min time for yellow. Default is 1", default = 1)
-parser.add_argument("-y_max","--yellow_max", type=int, help="Max time for yellow. Default is 10", default = 10)
-parser.add_argument("-gr_min","--green_min", type=int, help="Min time for green and red. Default is 1", default = 1)
-parser.add_argument("-gr_max","--green_max", type=int, help="Max time for green and red. Default is 40", default = 40)
+parser.add_argument("-y_min","--yellow_min", type=int, 
+	help="Min time for yellow. Default is 1", 
+	default = 1)
+parser.add_argument("-y_max","--yellow_max", type=int, 
+	help="Max time for yellow. Default is 10", 
+	default = 10)
+parser.add_argument("-gr_min","--green_min", type=int, 
+	help="Min time for green and red. Default is 1", 
+	default = 1)
+parser.add_argument("-gr_max","--green_max", type=int, 
+	help="Max time for green and red. Default is 40", 
+	default = 40)
 
 args = parser.parse_args()
 
@@ -62,8 +141,12 @@ import TJSumoTools as TJS
 #custom xml writer function
 write_xml = TJS.write_xml
 
-#custom print function which deletes [ * ] with debug mode disabled
-dprint = TJS.dprint
+#custom print function which doesn't log strings like [ * ] with debug mode disabled
+def dprint(s):
+	s=str(s)
+	if args.debug or not (s.split()[0]=="[" and s.split()[-1]=="]"):
+		print("TJT>\t"+s)
+
 TJS.debug = args.debug == 1	#enable debug print
 TJS.hang = args.hang == 1	#hang the simulation for external traci connection
 
@@ -78,16 +161,29 @@ sumoJobs = args.jobs
 sumoStepSize = args.step_size
 sumoRandomRoutes = args.random_routes
 sumoRouteFile = args.route_file
-sumoRepetitionRate = args.route_frequency
+sumoRandom = False
+sumoRouteRepetitions = 1
+if args.single_route_repetitions.isdigit():
+	sumoRouteRepetitions = int(args.single_route_repetitions)
+elif args.single_route_repetitions == "R":
+	sumoRouteRepetitions = 1
+	sumoRandom = True
+else:
+	dprint("WARNING: invalid single-route-repetitions parameter, needs to be a \
+		positive integer or \"R\". Continuing with \"1\"")
+
+sumoTrafficRates = [float(rf) for rf in args.traffic_rates.split(" ")]
+
+eaObjectives_complex = args.complex_objectives.split(" ")
+eaObjectives = [co for co in eaObjectives_complex if (co[0]=="+" or co[0]=="-")]
+normalize = args.normalize_fitness==1
 
 netconvert_output = args.netconvert_output
 sumo_output = args.sumo_output
 
 #other parameters
 ind = 0
-# junctionNumber = 158 #Bologna scenario
-# junctionNumber = 998 #Trento scenario
-junctionNumber = 3776 #Milan scenario
+junctionNumber = None
 
 folder = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H-%M-%S')
 os.mkdir(folder)
@@ -108,6 +204,53 @@ def clean_scenario():
 	tll.clear()
 	write_xml(tll, "clean_" + sumoScenario + '.tll.xml')
 
+def get_max_speed_limit(scenario):
+	edgefile = ET.parse(scenario+".edg.xml").getroot()
+	speeds = [
+		float(edge.get("speed"))
+		for edge in edgefile 
+		if (
+			edge.tag=="edge" and 						# exclude roundabouts and other types of edges
+			edge.get("type").split(".")[0]=="highway"	# exclude railways, which are edges but speed is much higher
+		)
+	]
+	return max(speeds)
+
+def normalize_fitness(fitness,ind,traffic_rate,routes,repetitions):
+	global sumoScenario,sumoTrafficRates
+
+	speednorm_coeff = 2.0
+	teleport_coeff = 10.0
+
+	normalize = lambda value,minv,maxv : float(value-minv)/float(maxv-minv)
+	getroutes = lambda ind,tr,rou:len(list(ET.parse(
+		folder+"/"+\
+		"ind"+str(ind)+\
+		"_traffic"+str(tr)+\
+		"_rep"+str(rou)+"_"+\
+		sumoScenario + ".rou.xml"
+		).getroot()))
+
+	i=0
+	for rou in range(routes):
+		for rep in range(repetitions):
+			for k in fitness.keys():
+				if k=="accidents" or k=="arrived":
+					fitness[k][i] = normalize(fitness[k][i],0,getroutes(ind,sumoTrafficRates[traffic_rate],rou))
+				elif k=="avg_speed":
+					fitness[k][i] = normalize(fitness[k][i],0,speednorm_coeff*get_max_speed_limit(sumoScenario)) 
+				elif k=="teleported":
+					fitness[k][i] = normalize(fitness[k][i],0,teleport_coeff*getroutes(ind,sumoTrafficRates[traffic_rate],rou))
+				else:
+					dprint("Can't normalize %s"%(k))
+
+			i+=1
+
+	print("%s  \t%d\t%d\t%d\t%d"%(str(fitness),ind,traffic_rate,routes,repetitions))
+	return fitness
+		
+
+
 
 class TJBenchmark(benchmarks.Benchmark):
 
@@ -120,10 +263,8 @@ class TJBenchmark(benchmarks.Benchmark):
 		else:
 			sign = +1
 
-		objective= objective[1:]
-
 		def evaluate(self,candidates,args):
-			global ind
+			global ind,eaObjectives
 			#ind = 0
 			#generate and execute_scenario
 			trafficLights_todo = []
@@ -131,11 +272,14 @@ class TJBenchmark(benchmarks.Benchmark):
 			routes_todo = []
 			simulations_todo = []
 			candidates_todo = []
+
+			data_to_collect = list(set([co[3:] for co in eaObjectives_complex]))
+			dprint("[ Requesting simulation with data collection %s ]"%(str(data_to_collect)))
+
 			for candidate in candidates:
 				dprint("[ evaluating - ind:"+str(ind)+" ]")
 				if not TJBenchmark.results_storage.has_key(pickle.dumps(candidate)):
 					dprint("[ need simulation ]")
-					candidates_todo.append(candidate)
 					candidate['ind'] = ind
 					trafficLights_todo.append({
 						"scenario": candidate['scenario'],
@@ -152,92 +296,154 @@ class TJBenchmark(benchmarks.Benchmark):
 							"tllogic":  folder + "/ind" + str(ind) + "_" + sumoScenario
 						}
 					})
-					for rep in range(sumoRandomRoutes):
-						dprint("[ \tevaluating - rep:"+str(rep)+" ]")
-						candidate['rep'] = rep
+					for sumoTrafficRate in sumoTrafficRates:
+						for rep in range(sumoRandomRoutes):
+							dprint("[ \tevaluating - rep:"+str(rep)+" ]")
+							candidate['rep'] = rep
 
-						routes_todo.append({
-							"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,
-							"prefix": "route",
-							"sumoEnd": sumoEnd,
-							"repetitionRate": sumoRepetitionRate, 
-							"output": folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario,
-						})
+							routes_todo.append({
+								"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,
+								"prefix": "route",
+								"sumoEnd": sumoEnd,
+								"repetitionRate": sumoTrafficRate, 
+								"output": folder + "/ind" + str(ind) + "_traffic" + str(sumoTrafficRate) + "_rep" + str(rep) + "_" + sumoScenario,
+							})
 
-						current_route = ""
-						if sumoRouteFile == None:
-							current_route = folder + "/ind" + str(ind) + "_rep" + str(rep) + "_" + sumoScenario
-						else:
-							current_route = sumoRouteFile
+							current_route = ""
+							if sumoRouteFile == None:
+								current_route = folder + "/ind" + str(ind) + "_traffic" + str(sumoTrafficRate) + "_rep" + str(rep) + "_" + sumoScenario
+							else:
+								current_route = sumoRouteFile
 
-						simulations_todo.append({
-							"launch":sumoLaunch,
-							"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,	
-							"sumoRoutes": current_route,
-							"sumoStepSize": sumoStepSize,
-							"sumoPort": sumoPort,
-							"sumoAutoStart": sumoAutoStart,
-							"sumoEnd": sumoEnd,
-							"sumoDelay": sumoDelay,
-							"dataCollection": True,
-							"sumoOutput": sumo_output==1
-						})
+							for rep in range(sumoRouteRepetitions):
+								current_seed = -1
+								if not sumoRandom:
+									current_seed = str(random.randint(0,99999))
 
+								simulations_todo.append({
+									"launch":sumoLaunch,
+									"sumoScenario": folder + "/ind" + str(ind) + "_" + sumoScenario,	
+									"sumoRoutes": current_route,
+									"sumoStepSize": sumoStepSize,
+									"sumoPort": sumoPort,
+									"sumoAutoStart": sumoAutoStart,
+									"sumoEnd": sumoEnd,
+									"sumoDelay": sumoDelay,
+									"objectives": data_to_collect,
+									"sumoOutput": sumo_output==1,
+									"sumoSeed": current_seed
+								})
+					candidates_todo.append(candidate)
 					ind += 1
 
 				else:
 					dprint("[ already simulated ]")
 
-				'''
-				Old call:
-				TJS.generate_traffic_light(candidate['scenario'],sumoScenario,folder+"/ind" + str(ind) + "_" + sumoScenario)
-				Implementation is not really multithreading atm
-				'''
-			TJS.generate_traffic_lights(trafficLights_todo,sumoJobs)
+			if len(scenarios_todo)>0:
+				# generate traffic light corresponding to each individual genome
+				TJS.generate_traffic_lights(trafficLights_todo,sumoJobs)
 
-			'''
-			Old Call:
-			TJS.generate_scenario(
-				sumoScenario,
-				netconvert_output==1,
-				output = folder + "/ind"  + str(ind) + "_" + sumoScenario,
-				node = folder + "/ind" + str(ind) + "_" + sumoScenario,
-				tllogic = folder + "/ind"  + str(ind) + "_" + sumoScenario
-			)
+				# generate a sumo net.xml scenario for each individual
+				TJS.generate_scenarios(scenarios_todo,sumoJobs)
 
-			'''
+				# generate random routes for each individual
+				TJS.generate_routes(routes_todo,sumoJobs)
 
-			TJS.generate_scenarios(scenarios_todo,sumoJobs)
+				# execute simulation of all the individuals
+				raw_results = TJS.execute_scenarios(simulations_todo, sumoJobs, sumoPort)
 
-			TJS.generate_routes(routes_todo,sumoJobs) #TODO
+				individuals = len(raw_results)/(len(sumoTrafficRates)*sumoRandomRoutes*sumoRouteRepetitions)
 
-			raw_results = TJS.execute_scenarios(simulations_todo,sumoJobs,sumoPort)
-			results = []
+				dprint("[ Processing fitness data of %d individuals ]"%(individuals))
 
-			for res_set in range(len(raw_results)/sumoRandomRoutes):
-				avg_res = {}
-				for k in ["accidents","arrived","teleported","avg_speed"]:
-					avg_res[k] = np.mean([resrep[k] for resrep in raw_results[sumoRandomRoutes*res_set:sumoRandomRoutes*(res_set+1)]])
-				results.append(avg_res)
+				for curr_ind in range(individuals):
+					ind_results = {}
+					orig_results = {}
+					for tr in range(len(sumoTrafficRates)):
+						res_subset = raw_results[
+							(len(sumoTrafficRates)*sumoRandomRoutes*sumoRouteRepetitions) 	* (curr_ind) +
+							(sumoRandomRoutes*sumoRouteRepetitions) 						* (tr)  :
+							(len(sumoTrafficRates)*sumoRandomRoutes*sumoRouteRepetitions) 	* (curr_ind) +
+							(sumoRandomRoutes*sumoRouteRepetitions) 						* (tr+1)
+						]
+						dprint("[ GROUPING: %d:%d]" %(
+							(len(sumoTrafficRates)*sumoRandomRoutes*sumoRouteRepetitions) 	* (curr_ind) +
+							(sumoRandomRoutes*sumoRouteRepetitions) 						* (tr) ,
+							(len(sumoTrafficRates)*sumoRandomRoutes*sumoRouteRepetitions) 	* (curr_ind) +
+							(sumoRandomRoutes*sumoRouteRepetitions) 						* (tr+1)
+						))
+						
+						dprint("[ Grouping fitness of %d executions ]"%(len(res_subset)))
 
-			for c_i in range(len(results)):
-				TJBenchmark.results_storage[pickle.dumps(candidates_todo[c_i])] = {}
-				for key,value in results[c_i].items():
+						res = {}
+						for k in data_to_collect:	
+							res[k] = [resrep[k] for resrep in res_subset]	#list of associated runs
+						if normalize:
+							ind_results[sumoTrafficRates[tr]] = normalize_fitness(res,curr_ind,tr,sumoRandomRoutes,sumoRouteRepetitions)
+							orig_results[sumoTrafficRates[tr]] = res
+						else:
+							ind_results[sumoTrafficRates[tr]] = res
+
 					TJBenchmark.results_storage[
-						pickle.dumps(candidates_todo[c_i])
-					][str(key)] = value
-					dprint("[ results: %s %f ]" % (key,value))
+						pickle.dumps(
+							candidates_todo[curr_ind]
+						)
+					] = {}
+					
+					for cobj in eaObjectives_complex:
+						obj = cobj[3:]
+						obj_sign = +1 if cobj[0] == "-" else -1
+
+						best = np.max if obj_sign<0 else np.min
+						worst = np.min if obj_sign<0 else np.max
+
+						method_traffic_frequency = \
+							best if cobj[1]=="B" else\
+							worst if cobj[1]=="W" else\
+							np.var if cobj[1]=="V" else\
+							np.mean #if cobj[1]=="M"						
+						method_repetitions = \
+							best if cobj[2]=="B" else\
+							worst if cobj[2]=="W" else\
+							np.var if cobj[2]=="V" else\
+							np.mean #if cobj[1]=="M"
+
+						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])][cobj] = \
+							method_traffic_frequency([
+								method_repetitions(ind_results[tr][obj]) 
+								for tr in sumoTrafficRates
+							])
+
+					TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["ind"] = candidates_todo[curr_ind]["ind"]
+					TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw"] = ind_results
+					if normalize:
+						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw_orig"] = orig_results
 
 
+
+			"""
+			print([(TJBenchmark.results_storage[
+					pickle.dumps(candidate)
+				][objective] \
+				+ normalize_coefficients[eaObjectives.index(objective)][0]) \
+				* normalize_coefficients[eaObjectives.index(objective)][1] \
+				* sign 
+				for candidate in candidates])
+			"""
 			return [
 				TJBenchmark.results_storage[
 					pickle.dumps(candidate)
-				][objective]*sign
+				][objective] * sign 
 				for candidate in candidates
 			]
 		return evaluate
 
-	def __init__(self, objectives=["accidents","arrived"]):
+	def __init__(self, objectives=["+accidents","-arrived"]):
+		global junctionNumber
+
+		junctionNumber = len(list(ET.parse(sumoScenario + ".nod.xml").getroot()))-1
+		dprint("[ optimizing %d junctions ]"%(junctionNumber))
+
 		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))
 		self.bounder = TJTBounder()
 		self.maximize = True
@@ -387,7 +593,7 @@ class TJTBounder(object):
 		
 if __name__ ==  "__main__":
 
-	problem = TJBenchmark(objectives=["+avg_speed","+arrived","-teleported","-accidents"])
+	problem = TJBenchmark(objectives=eaObjectives)
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
 	margs["crossoverRate"] = args.crossover_rate
@@ -411,7 +617,7 @@ if __name__ ==  "__main__":
 		**margs 
 	)
     
-	dprint(res)
+	#dprint(res)
 	
 	result_file = open(folder+"/results_storage.pkl", 'wb')
 	pickle.dump(problem.results_storage, result_file)

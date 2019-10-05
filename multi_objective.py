@@ -24,18 +24,13 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
 	
 	algorithm = NSGA2(random)
 	algorithm.terminator = terminators.generation_termination
-	if variator is None :
-		#algorithm.variator = [variators.blend_crossover,
-		#                      variators.gaussian_mutation]
-		pass
-	else :
+	if variator is not None :
 		algorithm.variator = problem.variator
 
 	kwargs["num_selected"]=kwargs["pop_size"]
 	if use_bounder :
 		kwargs["bounder"]=problem.bounder
 
-	# TODO: make custom observer that dumps each generation into a list, then at the end spit it out in a pickle
 	if display and problem.objectives == 2:
 		# don't like inspyred's plot observer, so use our custom one
 		algorithm.observer = [plot_utils.multi_objective_plotting_observer,
@@ -59,39 +54,7 @@ def run(random, problem, display=False, num_vars=0, use_bounder=True,
 						  generator=problem.generator,
 						  **kwargs)
 
-	'''
-	archive_file = open(kwargs["folder"]+"/archive.pkl", 'wb')
-	pickle.dump(algorithm.archive, archive_file)
-	archive_file.close()
-
-
-	best_guy = final_pop[0].candidate[0:num_vars]
-	best_fitness = final_pop[0].fitness
-	final_pop_fitnesses = asarray([guy.fitness for guy in final_pop])
-	final_pop = asarray([guy.candidate[0:num_vars] for guy in final_pop])
-
-	if animator is not None :
-		animator.stop()
-	
-	if display :
-		# Plot the parent and the offspring on the fitness landscape
-		# (only for 1D or 2D functions)
-		if num_vars == 1 :
-			plot_utils.plot_results_multi_objective_1D(problem,
-								  initial_pop_storage["individuals"],
-								  initial_pop_storage["fitnesses"],
-								  final_pop, final_pop_fitnesses,
-								  'Initial Population', 'Final Population',
-								  len(final_pop_fitnesses[0]))
-
-		elif num_vars == 2 :
-			plot_utils.plot_results_multi_objective_2D(problem,
-								  initial_pop_storage["individuals"],
-								  final_pop, 'Initial Population',
-								  'Final Population',
-								  len(final_pop_fitnesses[0]))
-	'''
-	return final_pop#, final_pop_fitnesses
+	return final_pop
 
 def run_ga(random,problem, display=True, num_vars=0,
 		   maximize=False, use_bounder=True, **kwargs) :
