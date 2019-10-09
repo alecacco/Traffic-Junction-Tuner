@@ -3,6 +3,7 @@
 #argparse stuff
 import argparse
 import random
+import re
 parser = argparse.ArgumentParser(description="Traffic Junction Optimizer.")
 
 #Simulation parameters
@@ -81,20 +82,22 @@ parser.add_argument("-cr","--crossover-rate", type=float,
 parser.add_argument("-ps","--pop-size", type=int, 
 	help="Population size, 5 as default", 
 	default=5)
-parser.add_argument("-cobj","--complex-objectives", type=str, 
-	help="Objectives of the evolutionary algorithm.\
-	Fitness for these objectives will be calculated from simulation \
-	results, taking mean, variance, worst or best. Use respectively \"M\"\
-	, \"V\", \"W\", \"B\" in some signed 2-sized combination followed by an \
-	objective definition. Put \"+\", \"-\" or \"*\" before to specify if the \
-	objective should be minimized, maximized or collected but not used for \
-	fitness. E.g. \"+WBarrived\" to minimize the arrived vehicles of the worst \
-	traffic frequency considering the best repetition, or \"-VMarrived\" to \
-	maximize the variance or arrived vehicles among traffic frequencies, \
-	considering the best achieved repetition. Default is \"-MMarrived \
-	+MMteleport +MMaccidents\". Avalable objectives identifiers are \
-	\"arrived\", \"teleport\", \"accidents\", \"avg_speed\", \"fuel\"",
-	default="-MMarrived	+MMteleport +MMaccidents")
+parser.add_argument("-cobj","--combined-objectives", type=str, 
+	help="TODO")
+"""Objectives of the evolutionary algorithm.\
+Fitness for these objectives will be calculated from simulation \
+results, taking mean, variance, worst or best. Use respectively \"M\"\
+, \"V\", \"W\", \"B\" in some signed 2-sized combination followed by an \
+objective definition. Put \"+\", \"-\" or \"*\" before to specify if the \
+objective should be minimized, maximized or collected but not used for \
+fitness. E.g. \"+WBarrived\" to minimize the arrived vehicles of the worst \
+traffic frequency considering the best repetition, or \"-VMarrived\" to \
+maximize the variance or arrived vehicles among traffic frequencies, \
+considering the best achieved repetition. Default is \"-MMarrived \
++MMteleport +MMaccidents\". Avalable objectives identifiers are \
+\"arrived\", \"teleport\", \"accidents\", \"avg_speed\", \"fuel\"",
+default="-MMarrived	+MMteleport +MMaccidents")
+"""
 parser.add_argument("-nf","--normalize-fitness", type=int, 
 	help="Automatically normalize fitness values if set to  1. Default is 1.", 
 	default=1)
@@ -174,8 +177,36 @@ else:
 
 sumoTrafficRates = [float(rf) for rf in args.traffic_rates.split(" ")]
 
-eaObjectives_complex = args.complex_objectives.split(" ")
-eaObjectives = [co for co in eaObjectives_complex if (co[0]=="+" or co[0]=="-")]
+def isfloatvalue(v):
+	return re.match("^[+-]?\d(\.\d+)?",v)!=None
+
+def iscomplexobjective(obj):
+	return (
+		(obj[2:] in TJS.implemented_objectives) and \
+		(
+			obj[0] in ["H","L","M","V"] and \
+			obj[1] in ["H","L","M","V"]
+		)
+	)
+
+comb_operators = {
+	"+":lambda a,b:a+b,
+	"-":lambda a,b:a-b,
+	"*":lambda a,b:a*b,
+	"/":lambda a,b:a/b,
+	"M":lambda a,b:max(a,b),
+	"m":lambda a,b:min(a,b)
+}
+eaObjectives_comb = sorted(args.combined_objectives.split(";"))
+
+eaObjectives_complex = set() #args.complex_objectives.split(" ")
+for comb_obj in eaObjectives_comb:
+	eaObjectives_complex = eaObjectives_complex.union([
+		obj for obj in comb_obj[2:-1].split(" ") if obj not in comb_operators.keys() and not isfloatvalue(obj)
+	])
+eaObjectives_complex = sorted(list(eaObjectives_complex))
+
+eaObjectives = [co for co in eaObjectives_comb if (co[0]=="+" or co[0]=="-")]
 normalize = args.normalize_fitness==1
 
 netconvert_output = args.netconvert_output
@@ -235,21 +266,82 @@ def normalize_fitness(fitness,ind,traffic_rate,routes,repetitions):
 	for rou in range(routes):
 		for rep in range(repetitions):
 			for k in fitness.keys():
+				previous = fitness[k][i]*1
+				maxv = -42
 				if k=="accidents" or k=="arrived":
-					fitness[k][i] = normalize(fitness[k][i],0,getroutes(ind,sumoTrafficRates[traffic_rate],rou))
+					maxv = getroutes(ind,sumoTrafficRates[traffic_rate],rou)
+					fitness[k][i] = normalize(fitness[k][i],0,maxv)
+					#print(k+" "+str(fitness[k][i]))
 				elif k=="avg_speed":
-					fitness[k][i] = normalize(fitness[k][i],0,speednorm_coeff*get_max_speed_limit(sumoScenario)) 
+					maxv = speednorm_coeff*get_max_speed_limit(sumoScenario)
+					fitness[k][i] = normalize(fitness[k][i],0,maxv)
 				elif k=="teleported":
-					fitness[k][i] = normalize(fitness[k][i],0,teleport_coeff*getroutes(ind,sumoTrafficRates[traffic_rate],rou))
+					maxv = teleport_coeff*getroutes(ind,sumoTrafficRates[traffic_rate],rou)
+					fitness[k][i] = normalize(fitness[k][i],0,maxv)
 				else:
 					dprint("Can't normalize %s"%(k))
-
+				#print("Normalization for %s (between 0 and %f): %f -> %f"%(k,maxv,previous,fitness[k][i]))
 			i+=1
 
-	print("%s  \t%d\t%d\t%d\t%d"%(str(fitness),ind,traffic_rate,routes,repetitions))
+	#print("%s  \t%d\t%d\t%d\t%d"%(str(fitness),ind,traffic_rate,routes,repetitions))
 	return fitness
 		
 
+"""
+Objectives checker, return True with valid objectives
+"""
+def validate_objectives(objectives):
+	#print(objectives)
+	valid = True
+	for comb_obj in objectives:
+		if (
+			comb_obj[0] in ["+","-","*"] and \
+			comb_obj[1] == "[" and comb_obj[-1] == "]"
+		):
+			count = 0
+			for obj in comb_obj[2:-1].split(" "):
+				if obj in comb_operators.keys():	# RPN operator
+					if count < 2:						# a RPN operator must have 2 parameters to work on
+						valid = False					# invalid RPN formula
+					else:
+						count-=1
+				elif isfloatvalue(obj) or \
+					iscomplexobjective(obj):			# RPN value, either int/float or objective token. 
+					count+=1
+				else:
+					valid = False						# invalid token
+				
+			if count != 1:
+				valid = False							# invalid RPN formula - not enough operands
+		else:
+			valid = False
+	return valid
+
+def parseRPN(formula,values):
+	stack = []
+	tokens = formula[2:-1].split(" ")
+	tokens.reverse()
+
+	while len(tokens)>0:
+		print(str(tokens)+" <---> "+str(stack))
+		current = tokens.pop()
+		if current in comb_operators.keys():
+			op1 = stack.pop()
+			op2 = stack.pop()
+			stack.append(comb_operators[current](op1,op2))
+		elif isfloatvalue(current):
+			stack.append(float(current))
+		elif iscomplexobjective(current):
+			stack.append(values[current])
+		else:
+			dprint("ERROR parsing RPN fitnesses.")
+			return 0
+
+	if len(stack) != 1:
+		dprint("ERROR: RPN fitnesses stack does not contain single elements")
+		return 0
+	else:
+		return stack.pop()
 
 
 class TJBenchmark(benchmarks.Benchmark):
@@ -264,7 +356,7 @@ class TJBenchmark(benchmarks.Benchmark):
 			sign = +1
 
 		def evaluate(self,candidates,args):
-			global ind,eaObjectives
+			global ind
 			#ind = 0
 			#generate and execute_scenario
 			trafficLights_todo = []
@@ -273,7 +365,7 @@ class TJBenchmark(benchmarks.Benchmark):
 			simulations_todo = []
 			candidates_todo = []
 
-			data_to_collect = list(set([co[3:] for co in eaObjectives_complex]))
+			data_to_collect = list(set([co[2:] for co in eaObjectives_complex]))
 			dprint("[ Requesting simulation with data collection %s ]"%(str(data_to_collect)))
 
 			for candidate in candidates:
@@ -384,52 +476,55 @@ class TJBenchmark(benchmarks.Benchmark):
 						else:
 							ind_results[sumoTrafficRates[tr]] = res
 
+					# compute complex objectives combinations
+					cobj_res = {}
+					for cobj in eaObjectives_complex:
+
+						best = np.max 
+						worst = np.min
+
+						method_traffic_frequency = \
+							best if cobj[0]=="H" else\
+							worst if cobj[0]=="L" else\
+							np.var if cobj[0]=="V" else\
+							np.mean #if cobj[1]=="M"						
+						method_repetitions = \
+							best if cobj[1]=="H" else\
+							worst if cobj[1]=="L" else\
+							np.var if cobj[1]=="V" else\
+							np.mean #if cobj[1]=="M"
+
+						cobj_res[cobj] = (method_traffic_frequency([
+								method_repetitions(ind_results[tr][cobj[2:]]) 
+								for tr in sumoTrafficRates
+							])
+						)
+					
+					# compute final combined objectives
 					TJBenchmark.results_storage[
 						pickle.dumps(
 							candidates_todo[curr_ind]
 						)
 					] = {}
 					
-					for cobj in eaObjectives_complex:
-						obj = cobj[3:]
-						obj_sign = +1 if cobj[0] == "-" else -1
-
-						best = np.max if obj_sign<0 else np.min
-						worst = np.min if obj_sign<0 else np.max
-
-						method_traffic_frequency = \
-							best if cobj[1]=="B" else\
-							worst if cobj[1]=="W" else\
-							np.var if cobj[1]=="V" else\
-							np.mean #if cobj[1]=="M"						
-						method_repetitions = \
-							best if cobj[2]=="B" else\
-							worst if cobj[2]=="W" else\
-							np.var if cobj[2]=="V" else\
-							np.mean #if cobj[1]=="M"
-
-						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])][cobj] = \
-							method_traffic_frequency([
-								method_repetitions(ind_results[tr][obj]) 
-								for tr in sumoTrafficRates
-							])
+					for comb_obj in eaObjectives_comb:
+						TJBenchmark.results_storage[
+							pickle.dumps(candidates_todo[curr_ind])
+						][comb_obj] = parseRPN(comb_obj, cobj_res)
+						
+					#TODO add adv obj here	
 
 					TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["ind"] = candidates_todo[curr_ind]["ind"]
 					TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw"] = ind_results
 					if normalize:
-						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw_orig"] = orig_results
+						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw_orig"] = orig_results	#TODO check values
 
 
-
-			"""
-			print([(TJBenchmark.results_storage[
-					pickle.dumps(candidate)
-				][objective] \
-				+ normalize_coefficients[eaObjectives.index(objective)][0]) \
-				* normalize_coefficients[eaObjectives.index(objective)][1] \
-				* sign 
-				for candidate in candidates])
-			"""
+				#save updated result file 
+				result_file = open(folder+"/results_storage.pkl", 'wb')
+				pickle.dump(problem.results_storage, result_file)
+				result_file.close()
+			
 			return [
 				TJBenchmark.results_storage[
 					pickle.dumps(candidate)
@@ -438,7 +533,7 @@ class TJBenchmark(benchmarks.Benchmark):
 			]
 		return evaluate
 
-	def __init__(self, objectives=["+accidents","-arrived"]):
+	def __init__(self, objectives=["+[MMaccidents]"]):
 		global junctionNumber
 
 		junctionNumber = len(list(ET.parse(sumoScenario + ".nod.xml").getroot()))-1
@@ -593,6 +688,10 @@ class TJTBounder(object):
 		
 if __name__ ==  "__main__":
 
+	if not validate_objectives(eaObjectives_comb):
+		dprint("ERROR: invalid objectives. Cannot parse RPN formula.")
+		sys.exit(-1)
+
 	problem = TJBenchmark(objectives=eaObjectives)
 	margs = {}
 	margs["mutationRate"] = args.mutation_rate
@@ -616,9 +715,7 @@ if __name__ ==  "__main__":
 		display=False, 
 		**margs 
 	)
-    
-	#dprint(res)
-	
+
 	result_file = open(folder+"/results_storage.pkl", 'wb')
 	pickle.dump(problem.results_storage, result_file)
-	result_file.close()
+	result_file.close()  

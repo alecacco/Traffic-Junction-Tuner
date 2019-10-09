@@ -9,15 +9,11 @@ import xml.dom.minidom as minidom
 from threading import RLock
 from threading import Thread
 
-#import TJSumoTraciDefinitions as tracidef
-
 debug = True
 hang = False
 pollingTime = 1
 
-#TODO
-#retrieve once per simstep single value
-#tracirequests = []
+implemented_objectives = ["arrived","teleported","accidents","fuel","avg_speed","var_speeds"]
 
 FNULL = open(os.devnull, 'w')
 

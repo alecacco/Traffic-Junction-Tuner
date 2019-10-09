@@ -15,13 +15,14 @@ parser.add_argument("-t","--table", type=str, help="Print a magnificent table of
 parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv file to compare the data to.", required=False)
 parser.add_argument("-mp","--matrix-plot", type=str, help="Select what generations to plot in the matrix plot (if requested). Provide a string with all the requested generations separated by a space.", required=False)
 parser.add_argument("-st","--save-table", type=str, help="Select generations table to save in csv format. Provide a string with all the requests separated by a space.", required=False)
+parser.add_argument("-o","--objectives", type=str, help="Specify objectives of the optimization. If a results_storage file is found, this is ignored and keys from the file are used instead.")
 #TODO [...] Use \"t\", \"pg\" and/or \"mp\" to include generations specified for other parameters. Provide a string with all the requests separated by a space. Default is \"t\".", required=False, default="t")
 
 args = parser.parse_args()
 if args.table=="a":
 	args.table=args.pick_generation
 
-import os
+import os,sys
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -64,10 +65,10 @@ def get_no(e):
 	return int(e[len("population"):-len(".pkl")])
 
 def get_pareto_front(population,objectives_indexes):
-		#I AM SO SORRY
-		#TL;DR: counts how many individuals of the same generation dominates its fitness for the current fitnesses. 
-		#If 0, then it belongs to the pareto front of the generation
-		#I mean, it **should** do it, it's kinda impossible to understand though	
+	#I AM SO SORRY
+	#TL;DR: counts how many individuals of the same generation dominates its fitness for the current fitnesses. 
+	#If 0, then it belongs to the pareto front of the generation
+	#I mean, it **should** do it, it's kinda impossible to understand though	
 
 	return [
 		#take the individual within the current generation gen...
@@ -186,16 +187,17 @@ def generate_plot_matrix():
 		color+=1
 		if color==3:
 			color+=1
-
-	for rs in range(len(reference_scenarios_data)):
-		ax.text(0,1-top_offset-(line_height*(len(requested_gens)+1+rs)),
-			"Reference individuals "+str(rs),
-			color="C"+str(color%10),
-			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
-		)
-		color+=1
-		if color==3:
+			
+	if references:
+		for rs in range(len(reference_scenarios_data)):
+			ax.text(0,1-top_offset-(line_height*(len(requested_gens)+1+rs)),
+				"Reference individuals "+str(rs),
+				color="C"+str(color%10),
+				va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
+			)
 			color+=1
+			if color==3:
+				color+=1
 
 
 
@@ -426,11 +428,17 @@ def main():
 	global reference_scenarios_data,objectives,res_storage,signs,titles,additional_info
 
 	dprint("[ Loading results storage ]")
-	res_storage = pickle.load(open(args.folder+"/results_storage.pkl"))
-	objectives = [o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind"] and o[0] in ["+","-"]]
-	additional_info = [o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind"] and o[0] not in ["+","-"]]
+	if args.objectives != None:
+		objectives = sorted(args.objectives.split(" "))
+	elif os.path.exists(args.folder+"/results_storage.pkl"):
+		res_storage = pickle.load(open(args.folder+"/results_storage.pkl"))
+		objectives = sorted([o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind","raw_orig"] and o[0] in ["+","-"]])
+		additional_info = [o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind","raw_orig"] and o[0] not in ["+","-"]]
+	else:
+		dprint("ERROR: please specify objectives. Quitting.")
+		sys.exit(-1)
 	titles = objectives
-	signs = [+1 if obj[0]=="+" else -1 for obj in objectives]
+	signs = [-1 if obj[0]=="-" else +1 for obj in objectives]
 	dprint(" Objectives loaded: %s"%(str(objectives)))
 
 	dprint("[ Loading population data ]")
@@ -452,9 +460,9 @@ def main():
 	allowed_populations = allowed_populations.union(set([int(args.pick_generation)%len(files), int(args.table)%len(files)]))
 	if args.save_table!=None:
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.save_table.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit()) ]))
-	if "matrix" in args.plot_type.split(" "):
+	if "matrix" in args.plot_type.split(" ") and args.plot==1:
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.matrix_plot.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())]))
-	if "box" in args.plot_type.split(" "):
+	if "box" in args.plot_type.split(" ") and args.plot==1:
 		allowed_populations = allowed_populations.union(set(range(len(files))))
 
 	allowed_populations = list(allowed_populations)
@@ -469,6 +477,10 @@ def main():
 		else:
 			populations.append(None)
 		file_i +=1
+
+	if not len(populations[allowed_populations[0]][0].fitness) == len(objectives):
+		dprint("ERROR: objectives number (%d) does not match indiviuals fitness number (%d). Quitting"%(len(populations[0][0].fitness),len(objectives)))
+		sys.exit(-1)
 	
 	dprint("[ \tChecking reference scenario request ]")
 	if args.reference_scenario != None:
