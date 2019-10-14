@@ -190,10 +190,10 @@ def iscomplexobjective(obj):
 	)
 
 comb_operators = {
-	"+":lambda a,b:a+b,
-	"-":lambda a,b:a-b,
-	"*":lambda a,b:a*b,
-	"/":lambda a,b:a/b,
+	"+":lambda a,b:b+a,
+	"-":lambda a,b:b-a,
+	"*":lambda a,b:b*a,
+	"/":lambda a,b:b/a,
 	"M":lambda a,b:max(a,b),
 	"m":lambda a,b:min(a,b)
 }
@@ -323,7 +323,7 @@ def parseRPN(formula,values):
 	tokens.reverse()
 
 	while len(tokens)>0:
-		print(str(tokens)+" <---> "+str(stack))
+		#print(str(tokens)+" <---> "+str(stack))
 		current = tokens.pop()
 		if current in comb_operators.keys():
 			op1 = stack.pop()
@@ -471,8 +471,8 @@ class TJBenchmark(benchmarks.Benchmark):
 						for k in data_to_collect:	
 							res[k] = [resrep[k] for resrep in res_subset]	#list of associated runs
 						if normalize:
-							ind_results[sumoTrafficRates[tr]] = normalize_fitness(res,curr_ind,tr,sumoRandomRoutes,sumoRouteRepetitions)
 							orig_results[sumoTrafficRates[tr]] = res
+							ind_results[sumoTrafficRates[tr]] = normalize_fitness(res,curr_ind,tr,sumoRandomRoutes,sumoRouteRepetitions)
 						else:
 							ind_results[sumoTrafficRates[tr]] = res
 
