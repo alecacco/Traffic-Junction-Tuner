@@ -23,6 +23,7 @@ if args.table=="a":
 	args.table=args.pick_generation
 
 import os,sys
+import re
 import pickle
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -290,15 +291,96 @@ def count_dominated(fitness1,fitnesses,invert=False):
 
 	return(str(count)+"/"+str(len(rearranged_fitnesses)))
 
+comb_operators = {
+	"+":lambda a,b:b+a,
+	"-":lambda a,b:b-a,
+	"*":lambda a,b:b*a,
+	"/":lambda a,b:b/a,
+	"M":lambda a,b:max(a,b),
+	"m":lambda a,b:min(a,b)
+}
+def isfloatvalue(v):
+	return re.match("^[+-]?\d(\.\d+)?",v)!=None
+
+def iscomplexobjective(obj):
+	return (
+		(obj[2:] in TJS.implemented_objectives) and \
+		(
+			obj[0] in ["H","L","M","V"] and \
+			obj[1] in ["H","L","M","V"]
+		)
+	)
+def parseRPN(formula,values):
+	stack = []
+	tokens = formula[2:-1].split(" ")
+	tokens.reverse()
+
+	while len(tokens)>0:
+		#print(str(tokens)+" <---> "+str(stack))
+		current = tokens.pop()
+		if current in comb_operators.keys():
+			op1 = stack.pop()
+			op2 = stack.pop()
+			stack.append(comb_operators[current](op1,op2))
+		elif isfloatvalue(current):
+			stack.append(float(current))
+		elif iscomplexobjective(current):
+			stack.append(values[current])
+		else:
+			dprint("ERROR parsing RPN fitnesses.")
+			return 0
+
+	if len(stack) != 1:
+		dprint("ERROR: RPN fitnesses stack does not contain single elements")
+		return 0
+	else:
+		return stack.pop()
+
 def load_reference_data(ref_filenames):
 	dprint("[ \t\tLoading reference scenario ]")
 	res = []
+	operations = {
+		"H":np.max,
+		"L":np.min,
+		"M":np.mean,
+		"V":np.var
+	}
 	for ref_filename in ref_filenames:
 		with open(ref_filename, 'rb') as ref_file:
 			reference_scenario_data = pickle.load(ref_file)
-		res.append([[refrep[obj[1:]] for refrep in reference_scenario_data] for obj in objectives])
-	return res
+	
+		reps = len(
+			reference_scenario_data[
+				reference_scenario_data.keys()[0]
+			])
+		traffic_rates = reference_scenario_data.keys()
 
+		cobjectives = set()
+		for comb_obj in objectives:
+			cobjectives = cobjectives.union(set([token 
+				for token in comb_obj[2:-1].split() 
+				if token [2:] in TJS.implemented_objectives 
+				and token[0] in ["H","L","M","V"]
+				and token[1] in ["H","L","M","V"]
+			]))
+
+		for cobj in cobjectives:
+			reference_scenario_data[cobj] = [
+				operations[cobj[0]]([
+					reference_scenario_data[tr][i][cobj[2:]] 
+					for tr in traffic_rates
+				]) 
+				for i in range(reps)
+			]
+
+		final_reference_scenario_data = {}
+		for comb_obj in objectives:
+			final_reference_scenario_data[comb_obj] = [parseRPN(comb_obj,{ k:reference_scenario_data[k][i] for k in cobjectives}) for i in range(reps)]
+
+		res.append([final_reference_scenario_data[obj] for obj in objectives])
+	
+	return res
+	
 #Table printing procedure
 def print_table(table):
 	title = ("******** Table of individuals for generation %d ********" % table)
@@ -429,7 +511,7 @@ def main():
 
 	dprint("[ Loading results storage ]")
 	if args.objectives != None:
-		objectives = sorted(args.objectives.split(" "))
+		objectives = sorted(args.objectives.split(";"))
 	elif os.path.exists(args.folder+"/results_storage.pkl"):
 		res_storage = pickle.load(open(args.folder+"/results_storage.pkl"))
 		objectives = sorted([o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind","raw_orig"] and o[0] in ["+","-"]])
@@ -479,7 +561,7 @@ def main():
 		file_i +=1
 
 	if not len(populations[allowed_populations[0]][0].fitness) == len(objectives):
-		dprint("ERROR: objectives number (%d) does not match indiviuals fitness number (%d). Quitting"%(len(populations[0][0].fitness),len(objectives)))
+		dprint("ERROR: objectives number (%d) does not match individuals fitness number (%d). Quitting"%(len(populations[0][0].fitness),len(objectives)))
 		sys.exit(-1)
 	
 	dprint("[ \tChecking reference scenario request ]")
