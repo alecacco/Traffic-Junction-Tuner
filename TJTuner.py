@@ -471,7 +471,7 @@ class TJBenchmark(benchmarks.Benchmark):
 						for k in data_to_collect:	
 							res[k] = [resrep[k] for resrep in res_subset]	#list of associated runs
 						if normalize:
-							orig_results[sumoTrafficRates[tr]] = res
+							orig_results[sumoTrafficRates[tr]] = res.copy()
 							ind_results[sumoTrafficRates[tr]] = normalize_fitness(res,curr_ind,tr,sumoRandomRoutes,sumoRouteRepetitions)
 						else:
 							ind_results[sumoTrafficRates[tr]] = res
@@ -517,7 +517,7 @@ class TJBenchmark(benchmarks.Benchmark):
 					TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["ind"] = candidates_todo[curr_ind]["ind"]
 					TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw"] = ind_results
 					if normalize:
-						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw_orig"] = orig_results	#TODO check values
+						TJBenchmark.results_storage[pickle.dumps(candidates_todo[curr_ind])]["raw_orig"] = orig_results	
 
 
 				#save updated result file 
