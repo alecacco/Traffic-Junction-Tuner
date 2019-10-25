@@ -226,6 +226,7 @@ def plot_all():
 			)
 
 			xticks = list(range(len(populations)))
+			plt.xticks(list(range(len(populations))), rotation='vertical')
 			
 			#**calculations**
 			if "linemax" in args.plot_type.split():
@@ -235,7 +236,6 @@ def plot_all():
 			if "linemin" in args.plot_type.split():
 				ax.plot(list(range(len(populations))),[np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
 
-			#locs, labels = ax.xticks() 
 
 			if "box" in args.plot_type.split():
 				ax.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
