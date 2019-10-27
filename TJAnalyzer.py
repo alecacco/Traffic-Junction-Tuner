@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 import TJSumoTools as TJS
+import plotting_lib as TJP
 
 debug = (args.debug == 1)
 def dprint(s):
@@ -65,45 +66,8 @@ sumoStepSize = 1
 def get_no(e):
 	return int(e[len("population"):-len(".pkl")])
 
-def get_pareto_front(population,objectives_indexes):
-	#I AM SO SORRY
-	#TL;DR: counts how many individuals of the same generation dominates its fitness for the current fitnesses. 
-	#If 0, then it belongs to the pareto front of the generation
-	#I mean, it **should** do it, it's kinda impossible to understand though	
-
-	return [
-		#take the individual within the current generation gen...
-		population[c]
-		for c in range(len(population)) 
-		#...only if no other individual in its generation dominates it, meaning that...
-		if (
-			# ...the number individuals dominating...
-			int(count_dominated(
-				[
-					#...our actual individual c...
-					population[c][k]*signs[k]
-					#...for the current objectives i,j...
-					for k in objectives_indexes
-				],
-				[
-					#...considering the entire actual population gen...
-					[
-						#...but only considering the current objectives i,j...
-						population[ind][k]*signs[k]
-					 	for k in objectives_indexes
-					] for ind in range(len(population))
-				]
-				#...[keeping in mind that the function return a "fraction" of dominating individuals, e.g. 20/30, and we need the first part]...
-				).split("/")[0]
-			#...MUST be 0, i.e. no other individuals dominates the actual individual...
-			)==0)
-		]
-
+#generate matrix plot
 def generate_plot_matrix():
-	plt.ioff()
-
-	f = plt.figure(2,figsize=(16,10))
-	f.suptitle(args.folder+" - matrix plot")
 
 	requested_gens = args.matrix_plot.split()
 	references = "r" in requested_gens
@@ -112,101 +76,57 @@ def generate_plot_matrix():
 	requested_gens = [int(r) for r in requested_gens if r.isdigit() or (r[0]=="-" and r[1:].isdigit())]
 
 	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
-	matrix_size = len(objectives)
-	index = 0
-	for i in range(matrix_size): 
-		for j in range(matrix_size):
-			if i>j:
-				ax = f.add_subplot(matrix_size,matrix_size,index+1)
-				color = 0
-				pareto_fronts = []
-				for gen in requested_gens:
-					population = [[ind.fitness[o]*signs[o] for o in range(len(objectives))] for ind in populations[gen]]
-					pareto1 = get_pareto_front(population,[i,j])
-					if not front_only:
-						ax.scatter(
-							[population[c][j] for c in range(len(population)) if population[c] not in pareto1],
-							[population[c][i] for c in range(len(population)) if population[c] not in pareto1],
-							color="C"+str(color%10),
-						)
-					pareto_fronts.append(([ind[j] for ind in pareto1],[ind[i] for ind in pareto1]))
-					color+=1
-					if color==3:
-						color+=1
-				if references:
-					for rs in range(len(reference_scenarios_data)):
-						reference_scenario_data = reference_scenarios_data[rs]
-						ref_quantity = len(reference_scenario_data[0])
-						ref_gen = [[reference_scenario_data[o][c] for o in range(len(objectives))] for c in range(ref_quantity)]
-						pareto2 = get_pareto_front(ref_gen,[i,j])
-						if not front_only:
-							ax.scatter(
-								[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
-								[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
-								color="C"+str(color%10)
-							)
-						pareto_fronts.append(([ind[j] for ind in pareto2],[ind[i] for ind in pareto2]))
-						color+=1
-						if color==3:
-							color+=1
 
-				color = 0
-				for fr in pareto_fronts:
-					ax.scatter(
-						fr[0],
-						fr[1],
-						marker="D",
-						color="C"+str(color%10),
-						edgecolors='r'
-					) 
-					color+=1
-					if color==3:
-						color+=1
-
-			elif i==j:
-				ax = f.add_subplot(matrix_size,matrix_size,index+1)
-				ax.set_axis_off()
-				ax.text(0.5, 0.5, titles[i], ha="center", va="center", fontsize=25, wrap=True)	 
-			index+=1
-
-	#legend
-	ax = f.add_subplot(matrix_size,matrix_size,matrix_size)
-	top_offset = 0.05
-	line_height = 0.2
-
-	ax.axis("off")
-	ax.text(0,1-top_offset,"Legend:", va="top",wrap=True)
-
-	color = 0
-	for req_i in range(len(requested_gens)):
-		req = requested_gens[req_i]
-		ax.text(0,1-top_offset-(line_height*(req_i+1)),
-			"Generation " + str(req),
-			color="C"+str(color%10),
-			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
-		)
-		color+=1
-		if color==3:
-			color+=1
-			
-	if references:
-		for rs in range(len(reference_scenarios_data)):
-			ax.text(0,1-top_offset-(line_height*(len(requested_gens)+1+rs)),
-				"Reference individuals "+str(rs),
-				color="C"+str(color%10),
-				va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
-			)
-			color+=1
-			if color==3:
-				color+=1
+	f = plt.figure(2,figsize=(16,10))
 
 
+	TJP.generate_plot_matrix(
+		f,
+		[[[ind.fitness[f_i]*signs[f_i] for f_i in range(len(signs))] for ind in populations[p_i]] for p_i in range(len(populations)) if p_i in requested_gens],
+		len(objectives),
+		titles = titles,
+		references = references,
+		front_only = front_only,
+		series_names = ["Generation "+str(r) for r in requested_gens],
+		title = args.folder+" - matrix plot",
+		reference_scenarios_data = reference_scenarios_data
+	)
 
 	if args.plot_pdf!=None:
 		if not os.path.isdir(args.folder+"/results"):
 			os.mkdir(args.folder + "/results")
 		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix", format="pdf") #TODO use multipage backend thing
 
+#generate parallel coordinates plot
+def generate_plot_parcoord():
+
+	requested_gens = args.matrix_plot.split()
+	references = "r" in requested_gens
+	front_only = "f" in requested_gens
+
+	requested_gens = [int(r) for r in requested_gens if r.isdigit() or (r[0]=="-" and r[1:].isdigit())]
+
+	dprint("[ Requests for parallel coordinates plot: " + str(requested_gens) + " ]")
+
+	f = plt.figure(3,figsize=(16,10))
+
+
+	TJP.generate_plot_parcoord(
+		f,
+		[[ind.fitness for ind in populations[p_i]] for p_i in range(len(populations)) if p_i in requested_gens],
+		len(objectives),
+		titles = titles,
+		references = references,
+		front_only = front_only,
+		series_names = ["Generation "+str(r) for r in requested_gens],
+		title = args.folder+" - parallel coordinates plot",
+		reference_scenarios_data = reference_scenarios_data
+	)
+
+	if args.plot_pdf!=None:
+		if not os.path.isdir(args.folder+"/results"):
+			os.mkdir(args.folder + "/results")
+		f.savefig(args.folder + "/results/" + args.plot_pdf + "_parcoord", format="pdf") 
 
 #Plotting procedure
 def plot_all():
@@ -257,6 +177,9 @@ def plot_all():
 
 	if "matrix" in args.plot_type.split():
 		generate_plot_matrix()
+
+	if "parcoord" in args.plot_type.split():
+		generate_plot_parcoord()
 
 	if args.plot_pdf==None:
 		plt.show()
