@@ -67,7 +67,7 @@ parser.add_argument("-tr","--traffic-rates", type=str, 	help="Traffic rates, \
 parser.add_argument("-rx","--route-file", type=str, help="Force non randomized \
 	routes, use a specific route file", 
 	default=None)
-#TODO add seeds and randomization for bot sumo simulation and netconvert route generation, also manage the seed loading in TJAnalyzer to repeat the exact individual
+#TODO manage the seed loading in TJAnalyzer to repeat the exact individual
 
 #Genetic algorithm paramenters
 parser.add_argument("-mr","--mutation-rate", type=float, 
@@ -271,7 +271,6 @@ def normalize_fitness(fitness,ind,traffic_rate,routes,repetitions):
 				if k=="accidents" or k=="arrived":
 					maxv = getroutes(ind,sumoTrafficRates[traffic_rate],rou)
 					fitness[k][i] = normalize(fitness[k][i],0,maxv)
-					#print(k+" "+str(fitness[k][i]))
 				elif k=="avg_speed":
 					maxv = speednorm_coeff*get_max_speed_limit(sumoScenario)
 					fitness[k][i] = normalize(fitness[k][i],0,maxv)
@@ -280,10 +279,7 @@ def normalize_fitness(fitness,ind,traffic_rate,routes,repetitions):
 					fitness[k][i] = normalize(fitness[k][i],0,maxv)
 				else:
 					dprint("Can't normalize %s"%(k))
-				#print("Normalization for %s (between 0 and %f): %f -> %f"%(k,maxv,previous,fitness[k][i]))
 			i+=1
-
-	#print("%s  \t%d\t%d\t%d\t%d"%(str(fitness),ind,traffic_rate,routes,repetitions))
 	return fitness
 		
 
@@ -291,7 +287,6 @@ def normalize_fitness(fitness,ind,traffic_rate,routes,repetitions):
 Objectives checker, return True with valid objectives
 """
 def validate_objectives(objectives):
-	#print(objectives)
 	valid = True
 	for comb_obj in objectives:
 		if (
@@ -323,7 +318,6 @@ def parseRPN(formula,values):
 	tokens.reverse()
 
 	while len(tokens)>0:
-		#print(str(tokens)+" <---> "+str(stack))
 		current = tokens.pop()
 		if current in comb_operators.keys():
 			op1 = stack.pop()
@@ -357,7 +351,6 @@ class TJBenchmark(benchmarks.Benchmark):
 
 		def evaluate(self,candidates,args):
 			global ind
-			#ind = 0
 			#generate and execute_scenario
 			trafficLights_todo = []
 			scenarios_todo = []

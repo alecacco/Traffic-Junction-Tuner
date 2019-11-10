@@ -95,7 +95,47 @@ def generate_plot_matrix():
 	if args.plot_pdf!=None:
 		if not os.path.isdir(args.folder+"/results"):
 			os.mkdir(args.folder + "/results")
-		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix", format="pdf") #TODO use multipage backend thing
+		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix.pdf", format="pdf") 
+
+#generate matrix plot - all values in results storage
+def generate_plot_matrix_all():
+	requested_gens = args.matrix_plot.split()
+	references = "r" in requested_gens
+	front_only = "f" in requested_gens
+
+	requested_gens = [int(r) for r in requested_gens if r.isdigit() or (r[0]=="-" and r[1:].isdigit())]
+
+	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
+
+	f = plt.figure(3,figsize=(16,10))
+
+	TJP.generate_plot_matrix(
+		f,
+		[
+			[
+				build_fitness([
+					ind_st["raw"] 
+					for ind_st in res_storage.values() 
+					if ind_st["ind"]==ind.candidate["ind"]
+				][0])
+				for ind in populations[p_i]
+			] 
+			for p_i in range(len(populations)) if p_i in requested_gens
+		],
+		len(objectives),
+		titles = titles,
+		references = references,
+		front_only = front_only,
+		series_names = ["Generation "+str(r) for r in requested_gens],
+		title = args.folder+" - matrix plot (all parameters)",
+		reference_scenarios_data = reference_scenarios_data
+	)
+
+	if args.plot_pdf!=None:
+		if not os.path.isdir(args.folder+"/results"):
+			os.mkdir(args.folder + "/results")
+		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix_all.pdf", format="pdf") 
+
 
 #generate parallel coordinates plot
 def generate_plot_parcoord():
@@ -108,8 +148,20 @@ def generate_plot_parcoord():
 
 	dprint("[ Requests for parallel coordinates plot: " + str(requested_gens) + " ]")
 
-	f = plt.figure(3,figsize=(16,10))
+	f = plt.figure(4,figsize=(16,10))
 
+	reference_scenarios_data_prepared = []
+	if references:
+		reference_scenarios_data_prepared = [
+				[
+					[
+						fit*signs[f_i] 
+						for fit in rs[f_i]
+					] 
+					for f_i in range(len(rs))
+				] 
+				for rs in reference_scenarios_data
+			]
 
 	TJP.generate_plot_parcoord(
 		f,
@@ -120,13 +172,13 @@ def generate_plot_parcoord():
 		front_only = front_only,
 		series_names = ["Generation "+str(r) for r in requested_gens],
 		title = args.folder+" - parallel coordinates plot",
-		reference_scenarios_data = reference_scenarios_data
+		reference_scenarios_data = reference_scenarios_data_prepared
 	)
 
 	if args.plot_pdf!=None:
 		if not os.path.isdir(args.folder+"/results"):
 			os.mkdir(args.folder + "/results")
-		f.savefig(args.folder + "/results/" + args.plot_pdf + "_parcoord", format="pdf") 
+		f.savefig(args.folder + "/results/" + args.plot_pdf + "_parcoord.pdf", format="pdf") 
 
 #Plotting procedure
 def plot_all():
@@ -173,13 +225,19 @@ def plot_all():
 		if args.plot_pdf!=None:
 			if not os.path.isdir(args.folder+"/results"):
 				os.mkdir(args.folder + "/results")
-			f.savefig(args.folder + "/results/" + args.plot_pdf, format="pdf")
+			f.savefig(args.folder + "/results/" + args.plot_pdf + ".pdf", format="pdf")
 
 	if "matrix" in args.plot_type.split():
 		generate_plot_matrix()
 
 	if "parcoord" in args.plot_type.split():
 		generate_plot_parcoord()
+
+	if "matrix_all" in args.plot_type.split():
+		if "raw" in res_storage.values()[0].keys():
+			generate_plot_matrix_all()
+		else:
+			dprint("ERROR: can't find raw data in the results storage!")
 
 	if args.plot_pdf==None:
 		plt.show()
@@ -259,6 +317,42 @@ def parseRPN(formula,values):
 	else:
 		return stack.pop()
 
+def build_fitness(data):
+	operations = {
+		"H":np.max,
+		"L":np.min,
+		"M":np.mean,
+		"V":np.var
+	}
+
+	reps = len(
+		data[
+			data.keys()[0]
+		])
+	traffic_rates = data.keys()
+
+	cobjectives = set()
+	for comb_obj in objectives:
+		cobjectives = cobjectives.union(set([token 
+			for token in comb_obj[2:-1].split() 
+			if token [2:] in TJS.implemented_objectives 
+			and token[0] in ["H","L","M","V"]
+			and token[1] in ["H","L","M","V"]
+		]))
+
+	data_grouped = {
+		cobj:operations[cobj[0]]([
+			operations[cobj[1]]([
+				data[tr][cobj[2:]]
+			])
+			for tr in traffic_rates 
+		])
+		for cobj in cobjectives
+	}
+
+	fitness = [parseRPN(comb_obj,data_grouped) for comb_obj in objectives]
+	return fitness
+
 def load_reference_data(ref_filenames):
 	dprint("[ \t\tLoading reference scenario ]")
 	res = []
@@ -295,7 +389,6 @@ def load_reference_data(ref_filenames):
 				]) 
 				for i in range(reps)
 			]
-
 		final_reference_scenario_data = {}
 		for comb_obj in objectives:
 			final_reference_scenario_data[comb_obj] = [parseRPN(comb_obj,{ k:reference_scenario_data[k][i] for k in cobjectives}) for i in range(reps)]
@@ -465,7 +558,11 @@ def main():
 	allowed_populations = allowed_populations.union(set([int(args.pick_generation)%len(files), int(args.table)%len(files)]))
 	if args.save_table!=None:
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.save_table.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit()) ]))
-	if "matrix" in args.plot_type.split(" ") and args.plot==1:
+	if (
+			"matrix" in args.plot_type.split(" ") or 
+			"parcoord" in args.plot_type.split(" ") or 
+			"matrix_all" in args.plot_type.split(" ")
+		) and args.plot==1:
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.matrix_plot.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())]))
 	if "box" in args.plot_type.split(" ") and args.plot==1:
 		allowed_populations = allowed_populations.union(set(range(len(files))))
