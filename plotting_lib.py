@@ -79,6 +79,10 @@ def generate_plot_matrix(f,data,objectives,titles=None,references=False,front_on
 		for j in range(matrix_size):
 			if i>j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)
+				plot_limits = {
+					"x":[np.inf,-np.inf],
+					"y":[np.inf,-np.inf]
+				}
 				color = 0
 				pareto_fronts = []
 				for pop in data:
@@ -94,6 +98,10 @@ def generate_plot_matrix(f,data,objectives,titles=None,references=False,front_on
 					color+=1
 					if color==3:
 						color+=1
+					plot_limits["x"][0] = np.min([plot_limits["x"][0]]+[population[c][j] for c in range(len(population)) if population[c] not in pareto1])
+					plot_limits["x"][1] = np.max([plot_limits["x"][1]]+[population[c][j] for c in range(len(population)) if population[c] not in pareto1])
+					plot_limits["y"][0] = np.min([plot_limits["y"][0]]+[population[c][i] for c in range(len(population)) if population[c] not in pareto1])
+					plot_limits["y"][1] = np.max([plot_limits["y"][1]]+[population[c][i] for c in range(len(population)) if population[c] not in pareto1])
 				if references:
 					for rs in range(len(reference_scenarios_data)):
 						reference_scenario_data = reference_scenarios_data[rs]
@@ -110,7 +118,14 @@ def generate_plot_matrix(f,data,objectives,titles=None,references=False,front_on
 						color+=1
 						if color==3:
 							color+=1
-
+						plot_limits["x"][0] = np.min([plot_limits["x"][0]]+[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2])
+						plot_limits["x"][1] = np.max([plot_limits["x"][1]]+[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2])
+						plot_limits["y"][0] = np.min([plot_limits["y"][0]]+[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2])
+						plot_limits["y"][1] = np.max([plot_limits["y"][1]]+[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2])
+				
+				ax.set_xlim((plot_limits["x"][0] - (plot_limits["x"][1]-plot_limits["x"][0])*0.05,plot_limits["x"][1] + (plot_limits["x"][1]-plot_limits["x"][0])*0.05))
+				ax.set_ylim((plot_limits["y"][0] - (plot_limits["y"][1]-plot_limits["y"][0])*0.05,plot_limits["y"][1] + (plot_limits["y"][1]-plot_limits["y"][0])*0.05))
+				
 				color = 0
 				for fr in pareto_fronts:
 					ax.scatter(
@@ -127,7 +142,7 @@ def generate_plot_matrix(f,data,objectives,titles=None,references=False,front_on
 			elif i==j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)
 				ax.set_axis_off()
-				ax.text(0.5, 0.5, titles[i], ha="center", va="center", fontsize=25, wrap=True)	 
+				ax.text(0.5, 0.5, titles[i], ha="center", va="center", fontsize=15, wrap=True)	 
 			index+=1
 
 	#legend

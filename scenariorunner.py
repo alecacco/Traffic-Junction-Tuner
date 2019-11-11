@@ -3,6 +3,7 @@ import pandas as pd
 import sys, os
 import argparse
 import pickle
+import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser(description="TJO - scenario runner")
 parser.add_argument("-s","--scenario",type=str, help="Scenario file to reproduce", required=True)
@@ -32,6 +33,49 @@ OUTPUT = args.output
 SUMOEND = args.end
 ROUTEFREQS = args.route_frequencies.split(" ")
 TOCOLLECT = args.data_to_collect.split(" ")
+
+def get_max_speed_limit(scenario):
+    edgefile = ET.parse(scenario+".edg.xml").getroot()
+    speeds = [
+        float(edge.get("speed"))
+        for edge in edgefile 
+        if (
+            edge.tag=="edge" and                        # exclude roundabouts and other types of edges
+            edge.get("type").split(".")[0]=="highway"   # exclude railways, which are edges but speed is much higher
+        )
+    ]
+    return max(speeds)
+
+def normalize_fitness(fit,traffic_rate,rou):
+
+    fitness = fit.copy()
+    speednorm_coeff = 2.0
+    teleport_coeff = 10.0
+
+    normalize = lambda value,minv,maxv : float(value-minv)/float(maxv-minv)
+    getroutes = lambda rou,tr:len(list(ET.parse(
+        FOLDER+"/"+\
+        "runrep_route"+str(rou)+\
+        "_traffic"+str(tr)+\
+        ".rou.xml"
+        ).getroot()))
+
+    for k in fitness.keys():
+        previous = fitness[k]*1
+        maxv = -42
+        if k=="accidents" or k=="arrived":
+            maxv = getroutes(rou,ROUTEFREQS[traffic_rate])
+            fitness[k] = normalize(fitness[k],0,maxv)
+        elif k=="avg_speed":
+            maxv = speednorm_coeff*get_max_speed_limit(SCENARIO)
+            fitness[k] = normalize(fitness[k],0,maxv)
+        elif k=="teleported":
+            maxv = teleport_coeff*getroutes(rou,ROUTEFREQS[traffic_rate])
+            fitness[k] = normalize(fitness[k],0,maxv)
+        else:
+            dprint("Can't normalize %s"%(k))
+    return fitness
+
 
 try:
     if not os.path.exists(SCENARIO+".net.xml"):
@@ -74,10 +118,18 @@ else:
 
     results = TJS.execute_scenarios(sim_todo,JOBS,27910)
     grouped_results = {}
+    normalized_results = {}
 
     subset = len(results)/len(ROUTEFREQS)
     for tr_i in range(len(ROUTEFREQS)):
         grouped_results[ROUTEFREQS[tr_i]] = results[subset*tr_i:subset*(tr_i+1)]
+        normalized_results[ROUTEFREQS[tr_i]] = [
+            normalize_fitness(
+                results[subset*tr_i:subset*(tr_i+1)][r_i],
+                tr_i,
+                r_i
+            ) for r_i in range(len(results[subset*tr_i:subset*(tr_i+1)]))
+        ]
 
     """df = pd.DataFrame(
             [res.values() for res in results],
@@ -87,6 +139,9 @@ else:
 
     df.to_csv(OUTPUT+".csv")
     """
-    pickle_save = open(OUTPUT+".pkl", 'wb')
-    pickle.dump(grouped_results, pickle_save)
-    pickle_save.close()
+    pickle_save1 = open(OUTPUT+".pkl", 'wb')
+    pickle_save2 = open(OUTPUT+"_norm.pkl", 'wb')
+    pickle.dump(grouped_results, pickle_save1)
+    pickle.dump(normalized_results, pickle_save2)
+    pickle_save1.close()
+    pickle_save2.close()

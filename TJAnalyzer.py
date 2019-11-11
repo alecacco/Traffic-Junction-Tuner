@@ -122,8 +122,8 @@ def generate_plot_matrix_all():
 			] 
 			for p_i in range(len(populations)) if p_i in requested_gens
 		],
-		len(objectives),
-		titles = titles,
+		len(objectives+additional_info),
+		titles = titles+additional_info,
 		references = references,
 		front_only = front_only,
 		series_names = ["Generation "+str(r) for r in requested_gens],
@@ -198,7 +198,7 @@ def plot_all():
 			)
 
 			xticks = list(range(len(populations)))
-			plt.xticks(list(range(len(populations))), rotation='vertical')
+			plt.xticks(list(range(0,len(populations),len(populations)/5)), rotation='vertical')
 			
 			#**calculations**
 			if "linemax" in args.plot_type.split():
@@ -211,6 +211,13 @@ def plot_all():
 
 			if "box" in args.plot_type.split():
 				ax.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
+			
+			plt.gca().set_xticklabels([
+				tl 
+				if (tl%(len(populations)/5)==0) 
+				else "" 
+				for tl in list(range(0,len(populations)))
+			])
 
 			#ax.xticks(locs)
 
@@ -332,7 +339,7 @@ def build_fitness(data):
 	traffic_rates = data.keys()
 
 	cobjectives = set()
-	for comb_obj in objectives:
+	for comb_obj in objectives+additional_info:
 		cobjectives = cobjectives.union(set([token 
 			for token in comb_obj[2:-1].split() 
 			if token [2:] in TJS.implemented_objectives 
@@ -350,7 +357,7 @@ def build_fitness(data):
 		for cobj in cobjectives
 	}
 
-	fitness = [parseRPN(comb_obj,data_grouped) for comb_obj in objectives]
+	fitness = [parseRPN(comb_obj,data_grouped) for comb_obj in objectives+additiona]
 	return fitness
 
 def load_reference_data(ref_filenames):
@@ -528,6 +535,7 @@ def main():
 	dprint("[ Loading results storage ]")
 	if args.objectives != None:
 		objectives = sorted(args.objectives.split(";"))
+		additional_info = []
 	elif os.path.exists(args.folder+"/results_storage.pkl"):
 		res_storage = pickle.load(open(args.folder+"/results_storage.pkl"))
 		objectives = sorted([o for o in res_storage[res_storage.keys()[0]].keys() if o not in ["raw","ind","raw_orig"] and o[0] in ["+","-"]])
