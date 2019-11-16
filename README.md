@@ -1,12 +1,16 @@
 # Traffic-Junction-Tuner
-Alessandro Cacco & Andrea Ferigo Bio Inspired Artificial Intelligence project - AA 2018/19
+Originally Alessandro Cacco & Andrea Ferigo Bio Inspired Artificial Intelligence project for AA 2018/19 Giovanni Iacca's course.
+Later evolved in the Traffic Junction Tuner project, developed by Alessandro Cacco and tutored by Giovanni Iacca.
+
 
 ## TJTuner.py
 This is the main tool, it manages the custom inspyred implementation of NSGA-II. It makes use of several libraries included in the repo.
 It has many configuration options:
-  - number of generations to develop
-  - launch, the command line name of the simulation program to use (either sumo or sumo-gui, ususally)
-  - port for connecting to sumo via TraCI: must be the same as the one in *scenario*.sumo.cfg
+  - number of generations to evolve
+  - objectives in RPN syntax (see paper for more information)
+  - traffic rates, used for the generation of synthetic traffic (see paper for more information
+  - launch, the command line name of the simulation program to use (either sumo or sumo-gui)
+  - port for connecting to sumo via TraCI, if multicore is enabled then this indicates the starting port.
   - scenario, the scenario sumo should load (e.g. "trento" if scenario files are trento.***.xml)
   - autostart of the simulation, can be disabled e.g. for demos
   - duration of the simulation (*end* parameter)
@@ -23,20 +27,23 @@ It has many configuration options:
 TJTuner.py --help should sum all these up.
 
 ## TJAnalyzer.py 
-This is the analysis tool, it loads "population" files from the specified folder (which should be a TJTuner.py result folder). 
+This is the analysis tool, it loads "population" and "results_storage" files from the specified folder (which should be a TJTuner.py result folder). 
 It allows to:
-  - plot the results of the genetic algorithm throughout generations.
+  - plot the results of the genetic algorithm throughout generations, in form of
+    - matrix plot
+    - boxplot
+    - parallel coordinates plot
   - print a nice table of all individuals of a specific generation
-  - re-simulate a specific individual of a specific generation (without data-collecting) in sumo-gui
+  - re-simulate a specific individual of a specific generation (without data-collecting) in sumo-gui (only in old versions have yet to be reimplemented for the latest)
+
+# plotting_lib.py
+Auxiliary plotting library for TJA
 
 ## TJSumoTools.py
 This library allows both TJTuner and TJAnalyzer to instantiate sumo simulations with no repeating code, basically. It also allow buiilding traffic light programs and generating the map to simulate based on a given individual.
 
+
 ## Other stuff
   - Scenario files
-  - example of (good) results
   - EA libraries (made by prof Giovanni Iacca)
-  - other routes file for trento, can be configured in trento.sumo.cfg
-  - routeRemover.py, a clean-up tools to remove routes from a *.rou.xml file, leaving only long routes from (and to) the map limit
-  - a bad .gitignore
-  - project presentation slides
+  - original course project presentation slides
