@@ -77,13 +77,14 @@ def generate_plot_matrix():
 
 	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
 
-	f = plt.figure(2,figsize=(16,10))
+	f = plt.figure(2,figsize=(9,6))
 
 
 	TJP.generate_plot_matrix(
 		f,
 		[[[ind.fitness[f_i]*signs[f_i] for f_i in range(len(signs))] for ind in populations[p_i]] for p_i in range(len(populations)) if p_i in requested_gens],
-		len(objectives),
+		len(objectives),\
+		signs,
 		titles = titles,
 		references = references,
 		front_only = front_only,
@@ -107,7 +108,7 @@ def generate_plot_matrix_all():
 
 	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
 
-	f = plt.figure(3,figsize=(16,10))
+	f = plt.figure(3,figsize=(9,6))
 
 	TJP.generate_plot_matrix(
 		f,
@@ -123,6 +124,7 @@ def generate_plot_matrix_all():
 			for p_i in range(len(populations)) if p_i in requested_gens
 		],
 		len(objectives+additional_info),
+		signs + list([0]*len(additional_info)),
 		titles = titles+additional_info,
 		references = references,
 		front_only = front_only,
@@ -148,7 +150,7 @@ def generate_plot_parcoord():
 
 	dprint("[ Requests for parallel coordinates plot: " + str(requested_gens) + " ]")
 
-	f = plt.figure(4,figsize=(16,10))
+	f = plt.figure(4,figsize=(9,6))
 
 	reference_scenarios_data_prepared = []
 	if references:
@@ -167,6 +169,7 @@ def generate_plot_parcoord():
 		f,
 		[[ind.fitness for ind in populations[p_i]] for p_i in range(len(populations)) if p_i in requested_gens],
 		len(objectives),
+		signs,
 		titles = titles,
 		references = references,
 		front_only = front_only,
@@ -184,18 +187,28 @@ def generate_plot_parcoord():
 def plot_all():
 	plt.ioff()
 
-	if "linemax" in args.plot_type.split() or "linemin" in args.plot_type.split() or "lineavg" in args.plot_type.split() or "box" in args.plot_type.split():
-
-		f = plt.figure(1,figsize=(16,10))
-		f.suptitle(args.folder+" - results")
+	if "linemax" in args.plot_type.split() or "linemin" in args.plot_type.split() or "lineavg" in args.plot_type.split() or "box" in args.plot_type.split() or "vbox" in args.plot_type.split():
 
 		plotnumber = len(populations[0][0].fitness)
+
+		if "vbox" in args.plot_type.split():
+			f = plt.figure(1,figsize=(6,5*plotnumber))
+		else:
+			f = plt.figure(1,figsize=(9,6))
+		f.suptitle(args.folder+" - results")
+
 		index = 0
 		for plot in range(plotnumber):
-			ax = f.add_subplot(int(np.ceil(np.sqrt(plotnumber))),int(np.ceil(np.sqrt(plotnumber))),index+1,
-				xlabel="Generation",
-				ylabel=objectives[index]
-			)
+			if "vbox" in args.plot_type.split():
+				ax = f.add_subplot(plotnumber,1,index+1,
+					xlabel="Generation",
+					ylabel=objectives[index]
+				)
+			else:	
+				ax = f.add_subplot(int(np.ceil(np.sqrt(plotnumber))),int(np.ceil(np.sqrt(plotnumber))),index+1,
+					xlabel="Generation",
+					ylabel=objectives[index]
+				)
 
 			xticks = list(range(len(populations)))
 			plt.xticks(list(range(0,len(populations),len(populations)/5)), rotation='vertical')
@@ -209,7 +222,7 @@ def plot_all():
 				ax.plot(list(range(len(populations))),[np.min([cand.fitness[index]*signs[index] for cand in pop]) for pop in populations], label="min")
 
 
-			if "box" in args.plot_type.split():
+			if "box" in args.plot_type.split() or "vbox" in args.plot_type.split():
 				ax.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
 			
 			plt.gca().set_xticklabels([
@@ -221,8 +234,10 @@ def plot_all():
 
 			#ax.xticks(locs)
 
-			ax.legend()
-			ax.set_title(titles[index])
+			if "linemax" in args.plot_type.split() or "linemin" in args.plot_type.split() or "lineavg" in args.plot_type.split():
+				ax.legend()
+
+			#ax.set_title(titles[index])
 			#ax.ylabel(objectives[index])
 			#ax.xlabel("Generation")
 			#ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -357,7 +372,7 @@ def build_fitness(data):
 		for cobj in cobjectives
 	}
 
-	fitness = [parseRPN(comb_obj,data_grouped) for comb_obj in objectives+additiona]
+	fitness = [parseRPN(comb_obj,data_grouped) for comb_obj in objectives+additional_info]
 	return fitness
 
 def load_reference_data(ref_filenames):
@@ -572,7 +587,7 @@ def main():
 			"matrix_all" in args.plot_type.split(" ")
 		) and args.plot==1:
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.matrix_plot.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())]))
-	if "box" in args.plot_type.split(" ") and args.plot==1:
+	if ("box" in args.plot_type.split(" ") or "vbox" in args.plot_type.split(" ")) and args.plot==1:
 		allowed_populations = allowed_populations.union(set(range(len(files))))
 
 	allowed_populations = list(allowed_populations)
