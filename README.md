@@ -1,7 +1,7 @@
 # Traffic-Junction-Tuner
 Originally Alessandro Cacco & Andrea Ferigo Bio Inspired Artificial Intelligence project for AA 2018/19 Giovanni Iacca's course.
 Later evolved in the Traffic Junction Tuner project, developed by Alessandro Cacco and tutored by Giovanni Iacca.
-
+Evolve a road scenario and improve the traffic lights configurations by means of genetic algorithms, using as fitness function the evaluation of custom objective expression on simulation results. The simulation are run with synthetic traffic, generated multiple times with different traffic densities to mimic a realistic road behavior.
 
 ## TJTuner.py
 This is the main tool, it manages the custom inspyred implementation of NSGA-II. It makes use of several libraries included in the repo.
@@ -36,7 +36,7 @@ It allows to:
   - print a nice table of all individuals of a specific generation
   - re-simulate a specific individual of a specific generation (without data-collecting) in sumo-gui (only in old versions have yet to be reimplemented for the latest)
 
-# plotting_lib.py
+## plotting_lib.py
 Auxiliary plotting library for TJA
 
 ## TJSumoTools.py
@@ -44,6 +44,6 @@ This library allows both TJTuner and TJAnalyzer to instantiate sumo simulations 
 
 
 ## Other stuff
-  - Scenario files
+  - Scenario files, for Trento and Milan
   - EA libraries (made by prof Giovanni Iacca)
   - original course project presentation slides
