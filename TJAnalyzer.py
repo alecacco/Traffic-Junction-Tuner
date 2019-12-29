@@ -55,7 +55,7 @@ titles = []
 objectives = []
 additional_info = []
 signs = []
-ranks = []
+ranks = {}
 
 #scenario parameters
 sumoScenario = "trento"
@@ -464,7 +464,7 @@ def print_table(table):
 				for i in range(len(objectives))
 			] + \
 			[ind.candidate["ind"]] + \
-			[str(ranks[ind_i])] + \
+			[str(ranks[table][ind_i])] + \
 			dominated + \
 			dominating + \
 			[
@@ -518,7 +518,7 @@ def save_tables():
 						[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
 						invert=True
 					))
-			rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+[str(ranks[ind_i])]+dominated+dominating)
+			rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+[str(ranks[table][ind_i])]+dominated+dominating)
 			ind_i += 1
 
 		rows = [[i]+rows[i] for i in range(len(rows))]
@@ -635,7 +635,8 @@ def main():
 		args.plot_type = " ".join([pt for pt in args.plot_type.split() if pt!="matrix"])
 
 
-	ranks = TJP.get_pareto_ranks([[ind.fitness[f_i]*signs[f_i] for f_i in range(len(signs))] for ind in populations[int(args.table)]],signs,list(range(len(objectives))))
+	for table in list(set([int(args.table)%len(files)]+[int(gen)%len(files) for gen in args.save_table.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())])):
+		ranks[table] = TJP.get_pareto_ranks([[ind.fitness[f_i]*signs[f_i] for f_i in range(len(signs))] for ind in populations[int(args.table)]],signs,list(range(len(objectives))))
 
 	dprint("[ printing table of individuals ]")
 	print_table(int(args.table) % len(populations))
