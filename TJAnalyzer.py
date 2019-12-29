@@ -10,12 +10,13 @@ parser.add_argument("-pi","--pick-individual", type=str, help="re-simulate a pop
 parser.add_argument("-pr","--pick-repetition", type=str, help="re-simulate a population, select which repetition of the individual (default is repetition 0)", required=False, default=0)
 parser.add_argument("-pl","--plot", type=int, help="Plot objective throughout generations", required=False, default=1)
 parser.add_argument("-pt","--plot-type", type=str, help="Select the types of plots to output, can be more than one, separated by a space. Possible choices are \"matrix\",\"box\", \"linemax\", \"linemin\", \"lineavg\".", required=False, default="box")
-parser.add_argument("-pp","--plot-pdf", type=str, help="Pdf file name in which plots are are saved (if requested) instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
 parser.add_argument("-t","--table", type=str, help="Print a magnificent table of a specific generation. Default is pick generation", default="-1")
 parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv file to compare the data to.", required=False)
 parser.add_argument("-mp","--matrix-plot", type=str, help="Select what generations to plot in the matrix plot (if requested). Provide a string with all the requested generations separated by a space.", required=False)
 parser.add_argument("-st","--save-table", type=str, help="Select generations table to save in csv format. Provide a string with all the requests separated by a space.", required=False)
 parser.add_argument("-o","--objectives", type=str, help="Specify objectives of the optimization. If a results_storage file is found, this is ignored and keys from the file are used instead.")
+parser.add_argument("-pp","--plot-pdf", type=str, help="Name of the file in which plots are are saved instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
+parser.add_argument("-pf","--plot-format", type=str, help="Specify the format for the saved plot, space separated list, possible choices:\"pdf\",\"eps\". Default is \"pdf\"", default="pdf")
 #TODO [...] Use \"t\", \"pg\" and/or \"mp\" to include generations specified for other parameters. Provide a string with all the requests separated by a space. Default is \"t\".", required=False, default="t")
 
 args = parser.parse_args()
@@ -54,6 +55,7 @@ titles = []
 objectives = []
 additional_info = []
 signs = []
+ranks = []
 
 #scenario parameters
 sumoScenario = "trento"
@@ -96,7 +98,11 @@ def generate_plot_matrix():
 	if args.plot_pdf!=None:
 		if not os.path.isdir(args.folder+"/results"):
 			os.mkdir(args.folder + "/results")
-		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix.pdf", format="pdf") 
+		if "pdf" in args.plot_format.split(" "):
+			f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix.pdf", format="pdf")
+		if "eps" in args.plot_format.split(" "):
+			f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix.eps", format="eps")
+
 
 #generate matrix plot - all values in results storage
 def generate_plot_matrix_all():
@@ -136,7 +142,10 @@ def generate_plot_matrix_all():
 	if args.plot_pdf!=None:
 		if not os.path.isdir(args.folder+"/results"):
 			os.mkdir(args.folder + "/results")
-		f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix_all.pdf", format="pdf") 
+		if "pdf" in args.plot_format.split(" "):
+			f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix_all.pdf", format="pdf")
+		if "eps" in args.plot_format.split(" "):
+			f.savefig(args.folder + "/results/" + args.plot_pdf + "_matrix_all.eps", format="eps")
 
 
 #generate parallel coordinates plot
@@ -181,7 +190,10 @@ def generate_plot_parcoord():
 	if args.plot_pdf!=None:
 		if not os.path.isdir(args.folder+"/results"):
 			os.mkdir(args.folder + "/results")
-		f.savefig(args.folder + "/results/" + args.plot_pdf + "_parcoord.pdf", format="pdf") 
+		if "pdf" in args.plot_format.split(" "):
+			f.savefig(args.folder + "/results/" + args.plot_pdf + "_parcoord.pdf", format="pdf")
+		if "eps" in args.plot_format.split(" "):
+			f.savefig(args.folder + "/results/" + args.plot_pdf + "_parcoord.eps", format="eps")
 
 #Plotting procedure
 def plot_all():
@@ -247,7 +259,10 @@ def plot_all():
 		if args.plot_pdf!=None:
 			if not os.path.isdir(args.folder+"/results"):
 				os.mkdir(args.folder + "/results")
-			f.savefig(args.folder + "/results/" + args.plot_pdf + ".pdf", format="pdf")
+			if "pdf" in args.plot_format.split(" "):
+				f.savefig(args.folder + "/results/" + args.plot_pdf + ".pdf", format="pdf")
+			if "eps" in args.plot_format.split(" "):
+				f.savefig(args.folder + "/results/" + args.plot_pdf + ".eps", format="eps")
 
 	if "matrix" in args.plot_type.split():
 		generate_plot_matrix()
@@ -427,6 +442,7 @@ def print_table(table):
 	dprint("-"*len(title))
 	rows = []
 
+	ind_i = 0
 	for ind in populations[table]:
 		dominated = []
 		dominating = []
@@ -448,6 +464,7 @@ def print_table(table):
 				for i in range(len(objectives))
 			] + \
 			[ind.candidate["ind"]] + \
+			[str(ranks[ind_i])] + \
 			dominated + \
 			dominating + \
 			[
@@ -455,13 +472,14 @@ def print_table(table):
 				for a in additional_info
 			]
 		)
+		ind_i +=1
 	
 	rows = [[i]+rows[i] for i in range(len(rows))]
 	
 	if args.reference_scenario==None:
-		rows = [["pop_ind"]+titles+["actual_ind"]+additional_info]+rows
+		rows = [["pop_ind"]+titles+["actual_ind","pareto"]+additional_info]+rows
 	else:
-		firstrow = ["pop_ind"]+titles+["actual_ind"]
+		firstrow = ["pop_ind"]+titles+["actual_ind","pareto"]
 		for i in range(len(reference_scenarios_data)):
 			firstrow += ["dominated_"+str(i),"dominating_"+str(i)]
 		firstrow += additional_info 
@@ -484,6 +502,7 @@ def save_tables():
 	for table in list(set([int(gen)%len(files) for gen in args.save_table.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())])):
 		rows = []
 
+		ind_i = 0
 		for ind in populations[table]:
 			dominated = []
 			dominating = []
@@ -499,14 +518,15 @@ def save_tables():
 						[[data[i]*signs[i] for i in range(len(objectives))] for data in zip(*reference_scenario_data)],
 						invert=True
 					))
-			rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+dominated+dominating)
-		
+			rows.append([ind.fitness[i]*signs[i] for i in range(len(objectives))]+[ind.candidate['ind']]+[str(ranks[ind_i])]+dominated+dominating)
+			ind_i += 1
+
 		rows = [[i]+rows[i] for i in range(len(rows))]
 		
 		if args.reference_scenario==None:
-			rows = [["pop_ind"]+titles+["actual_ind"]]+rows
+			rows = [["pop_ind"]+titles+["actual_ind","pareto"]]+rows
 		else:
-			firstrow = ["pop_ind"]+titles+["actual_ind"]
+			firstrow = ["pop_ind"]+titles+["actual_ind","pareto"]
 			for i in range(len(reference_scenarios_data)):
 				firstrow += ["dominated_"+str(i),"dominating_"+str(i)]
 			rows = [firstrow] + rows
@@ -545,7 +565,7 @@ def execute_individual(pop,ind,rep=0):
 	)
 
 def main():
-	global reference_scenarios_data,objectives,res_storage,signs,titles,additional_info
+	global reference_scenarios_data,objectives,res_storage,signs,titles,additional_info,ranks
 
 	dprint("[ Loading results storage ]")
 	if args.objectives != None:
@@ -613,6 +633,9 @@ def main():
 	elif args.matrix_plot!=None and ("r" in args.matrix_plot.split(" ")) and ("matrix" in args.plot_type.split()):
 		print("\033[1;33;40mWARNING:\033[1;37;40m reference scenario not specific, but requested for matrix plot! It will not be shown.")
 		args.plot_type = " ".join([pt for pt in args.plot_type.split() if pt!="matrix"])
+
+
+	ranks = TJP.get_pareto_ranks([[ind.fitness[f_i]*signs[f_i] for f_i in range(len(signs))] for ind in populations[int(args.table)]],signs,list(range(len(objectives))))
 
 	dprint("[ printing table of individuals ]")
 	print_table(int(args.table) % len(populations))

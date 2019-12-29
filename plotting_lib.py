@@ -65,6 +65,19 @@ def get_pareto_front(population,signs,objectives_indexes):
 			)==0)
 		]
 
+def get_pareto_ranks(population,signs,objectives_indexes):
+	ranks = [-1]*len(population)
+	curpop = [p for p in population]
+	currank = 0
+	while len(curpop)>0:
+		pareto = get_pareto_front(curpop,signs,objectives_indexes)
+		for p in pareto:
+			ranks[population.index(p)] = currank
+			curpop.remove(p)
+		currank += 1
+	return ranks
+
+
 def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,front_only=False,series_names=[],title="Matrix plot",reference_scenarios_data=[]):
 	plt.ioff()
 
@@ -74,6 +87,43 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 		titles = ["" for _ in range(objectives)]
 
 	matrix_size = objectives
+
+	#legend
+	ax = f.add_subplot(matrix_size,matrix_size,matrix_size)
+	top_offset = 0.05
+	# the 0.2 height factor was calibrated for 3x3 matrix plot
+	# NOTE for larger ones we overdraw the legend outside its axis, so too many  
+	# populations WILL cause the legend to be drawn UNDER to the bottom-right label axis
+	line_height = 0.2/3.0*objectives 
+
+	ax.axis("off")
+	ax.text(0,1-top_offset,"Legend:", va="top",wrap=True)
+
+	color = 0
+	for serie_name_i in range(len(series_names)):
+		serie_name = series_names[serie_name_i]
+		ax.text(0,1-top_offset-(line_height*(serie_name_i+1)),
+			serie_name,
+			color="C"+str(color%10),
+			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'},
+
+		)
+		color+=1
+		if color==3:
+			color+=1
+
+
+	if references:
+		for rs in range(len(reference_scenarios_data)):
+			ax.text(0,1-top_offset-(line_height*(len(data)+1+rs)),
+				"Reference "+str(rs),
+				color="C"+str(color%10),
+				va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
+			)
+			color+=1
+			if color==3:
+				color+=1
+
 	index = 0
 	for i in range(matrix_size): 
 		for j in range(matrix_size):
@@ -136,6 +186,11 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 				ax.set_xlim((plot_limits["x"][0] - (plot_limits["x"][1]-plot_limits["x"][0])*0.05,plot_limits["x"][1] + (plot_limits["x"][1]-plot_limits["x"][0])*0.05))
 				ax.set_ylim((plot_limits["y"][0] - (plot_limits["y"][1]-plot_limits["y"][0])*0.05,plot_limits["y"][1] + (plot_limits["y"][1]-plot_limits["y"][0])*0.05))
 				
+				if j>0:
+					ax.set_yticklabels(""*len(ax.get_yticklabels()))
+				if i<matrix_size-1:
+					ax.set_xticklabels(""*len(ax.get_xticklabels()))
+
 				color = 0
 				for fr in pareto_fronts:
 					ax.scatter(
@@ -152,40 +207,8 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 			elif i==j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)
 				ax.set_axis_off()
-				ax.text(0.5, 0.5, titles[i], ha="center", va="center", fontsize=15, wrap=True)	 
+				ax.text(0.5, 0.5, titles[i], ha="center", va="center", wrap=True)	 
 			index+=1
-
-	#legend
-	ax = f.add_subplot(matrix_size,matrix_size,matrix_size)
-	top_offset = 0.05
-	line_height = 0.2
-
-	ax.axis("off")
-	ax.text(0,1-top_offset,"Legend:", va="top",wrap=True)
-
-	color = 0
-	for serie_name_i in range(len(series_names)):
-		serie_name = series_names[serie_name_i]
-		ax.text(0,1-top_offset-(line_height*(serie_name_i+1)),
-			serie_name,
-			color="C"+str(color%10),
-			va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
-		)
-		color+=1
-		if color==3:
-			color+=1
-
-
-	if references:
-		for rs in range(len(reference_scenarios_data)):
-			ax.text(0,1-top_offset-(line_height*(len(data)+1+rs)),
-				"Reference "+str(rs),
-				color="C"+str(color%10),
-				va="top",wrap=True,bbox={'facecolor':'white','edgecolor':'black'}
-			)
-			color+=1
-			if color==3:
-				color+=1
 
 
 
