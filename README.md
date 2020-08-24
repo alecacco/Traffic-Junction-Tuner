@@ -42,7 +42,7 @@ Auxiliary plotting library for TJA
 ## TJSumoTools.py
 This library allows both TJTuner and TJAnalyzer to instantiate sumo simulations with no repeating code, basically. It also allow buiilding traffic light programs and generating the map to simulate based on a given individual.
 
-## experiments_plots
+## experiments_results
 Folder containing all the plots of the experiments we run for the paper.
 
 ## Other stuff
