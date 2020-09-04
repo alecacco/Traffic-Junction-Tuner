@@ -42,7 +42,7 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 
 	sumoLaunch = str(launch
 		+" -n " + scenario +".net.xml"
-		+" -r " + routes + ".rou.xml" 
+		+" -r " + (".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml" 
 		+ sumoAutoStart
 		+ sumoRandom
 		+" -Q" 
@@ -405,13 +405,21 @@ def advance_simulation(simid, procinfo, results_d, lock):
 
 def generate_route(route):
 	dprint("[ generating route... ]")
-	randomTripsLaunch = str( os.environ["SUMO_HOME"]+"/tools/randomTrips.py \
+	randomTripsLaunch = str(os.environ["SUMO_HOME"]+"/tools/randomTrips.py \
 			-n " + route['sumoScenario'] + ".net.xml \
 			--prefix " + route["prefix"] 
+			+ ((" --trip-attributes=type=\"type_"+route['emissionClass']+"\"") if "emissionClass" in route.keys() else "")
 			+ " -p " + str(route["repetitionRate"])
 			+ " -e " + str(route["sumoEnd"])
+			+ ((" --additional-file " + route["output"] + ".add.xml") if "emissionClass" in route.keys() else "")
 			+ " -r " + route["output"] + ".rou.xml"
 		).split()
+
+	if "emissionClass" in route.keys():
+		with open(route["output"]+".add.xml","w+") as addfile:
+			addfile.write(
+				"<additional>\n<vType vClass=\"passenger\" id=\"type_"+route['emissionClass']+"\" emissionClass=\""+route["emissionClass"]+"\" length=\"5\" maxSpeed=\"70\" carFollowModel=\"Krauss\" accel=\"2.6\" decel=\"4.5\" sigma=\"0.5\"/>\n</additional>"
+			)
 
 	if (debug):
 		randomTripsProcess = subprocess32.Popen(randomTripsLaunch)
@@ -421,7 +429,7 @@ def generate_route(route):
 	randomTripsProcess.wait()
 	os.remove(route["output"] + ".rou.alt.xml")
 
-
 def generate_routes(routes, jobs):
+	#TODO multithreading
 	for route in routes:
 		generate_route(route)
