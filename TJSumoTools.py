@@ -13,7 +13,7 @@ debug = True
 hang = False
 pollingTime = 1
 
-implemented_objectives = ["arrived","teleported","accidents","fuel","avg_speed","var_speeds"]
+implemented_objectives = ["arrived","teleported","accidents","fuel","avg_speed","var_speeds","CO2","PMx"]
 junction_types = ["priority","traffic_light"]
 
 FNULL = open(os.devnull, 'w')
@@ -40,7 +40,7 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 		sumoRandom = " --random"
 	else:
 		sumoRandom = " --seed " +str(seed)
-
+	print((".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml" )
 	sumoLaunch = str(launch
 		+" -n " + scenario +".net.xml"
 		+" -r " + (".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml" 
@@ -327,7 +327,9 @@ def execute_scenarios(parametersList, jobs, port):
 				"arrived": 0,
 				"teleported": 0,
 				"avg_speed": [],
-				"fuel": []
+				"fuel": [],
+				"CO2": [],
+				"PMx": []
 			}
 			thread = Thread(target = advance_simulation, args = (simid_inc, processes[simid_inc],results_d,lock))
 			thread.start()
@@ -388,7 +390,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 			if "teleported" in procinfo["objectives"]:
 					procinfo["teleported"] += procinfo["traci"].simulation.getStartingTeleportNumber()
 
-			if "fuel" in procinfo["objectives"] or "avg_speed" in procinfo["objectives"] or "var_speeds" in procinfo["objectives"]:
+			if "fuel" in procinfo["objectives"] or "avg_speed" in procinfo["objectives"] or "var_speeds" in procinfo["objectives"] or "CO2" in procinfo["objectives"] or "PMx" in procinfo["objectives"]:
 				vehicleIDs = procinfo["traci"].vehicle.getIDList()
 				if len(vehicleIDs)>0:
 					if "avg_speed" in procinfo["objectives"]:
@@ -397,6 +399,10 @@ def advance_simulation(simid, procinfo, results_d, lock):
 						procinfo["avg_speed"].append(np.var([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
 					if "fuel" in procinfo["objectives"]:
 						procinfo["fuel"].append(np.sum([procinfo["traci"].vehicle.getFuelConsumption(veh) for veh in vehicleIDs]))
+					if "CO2" in procinfo["objectives"]:
+						procinfo["CO2"].append(np.sum([procinfo["traci"].vehicle.getCO2Emission(veh) for veh in vehicleIDs]))
+					if "PMx" in procinfo["objectives"]:
+						procinfo["PMx"].append(np.sum([procinfo["traci"].vehicle.getPMxEmission(veh) for veh in vehicleIDs]))
 	
 	procinfo["traci"].close()
 
