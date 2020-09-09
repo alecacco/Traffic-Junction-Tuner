@@ -529,7 +529,7 @@ class TJBenchmark(benchmarks.Benchmark):
 	def __init__(self, objectives=["+[MMaccidents]"]):
 		global junctionNumber
 
-		junctionNumber = len(list(ET.parse(sumoScenario + ".nod.xml").getroot()))-1
+		junctionNumber = len([n for n in ET.parse(sumoScenario + ".nod.xml").getroot() if n.tag=="node" and n.get("type") in TJS.junction_types])
 		dprint("[ optimizing %d junctions ]"%(junctionNumber))
 
 		benchmarks.Benchmark.__init__(self, junctionNumber, len(objectives))

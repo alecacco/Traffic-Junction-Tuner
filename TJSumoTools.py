@@ -14,6 +14,7 @@ hang = False
 pollingTime = 1
 
 implemented_objectives = ["arrived","teleported","accidents","fuel","avg_speed","var_speeds"]
+junction_types = ["priority","traffic_light"]
 
 FNULL = open(os.devnull, 'w')
 
@@ -167,73 +168,80 @@ def tl_combinations(connectionSets):
 
 	return res
 
-def generate_traffic_light(indexes,sumoScenario,name):
+def generate_traffic_light(indexes,sumoScenario,name,ind_map=None):
 	scenario = {
 		"edg" : ET.parse(sumoScenario+'.edg.xml'),
 		"con" : ET.parse(sumoScenario+'.con.xml'),
-		"tll" : ET.parse("clean_" + sumoScenario + '.tll.xml'),
+		"tll" : ET.parse("clean_" + sumoScenario + '.tll.xml'),	#contains default tll & con
 		"nod" : ET.parse("clean_" + sumoScenario + '.nod.xml')
 	}
-	'''
-	#load all scenario files as ET
-	for f in os.listdir("."):
-		ff = f.split('.')
-		if len(ff)==3 and ff[0]==sumoScenario and ff[1] in ["edg","con"]:
-			scenario[ff[1]]=ET.parse(f)
-	for f in os.listdir(folder):
-		ff = f.split('.')
-		if len(ff)==3 and ff[0]==sumoScenario and ff[1] in ["tll","nod"]:
-			scenario[ff[1]]=ET.parse(folder + "/" + f)
-	'''
+	if ind_map==None:
+		ind_map=[True]*len(indexes) #NOTE this does not consider allowed junction_types, will not match the right junction settings, but it's all True so it's not a problem
+
+	default_tll_connections =  [c for c in scenario["tll"].getroot() if c.tag=="connection"]
+	for t in scenario["tll"].getroot():
+		if t.tag=="connection":
+			scenario["tll"].getroot().remove(t)
+
 	connectionsToAppend = []
+	nodes = list(scenario['nod'].getroot())[1:]
+	ind_index=0
 	for index in range(len(indexes)):
-		if indexes[index]['type'] == 't':
-			#node we are turning into a TL
-			nodeid = list(scenario['nod'].getroot())[1:][index].get('id')
+		if nodes[index].get("type") in junction_types:
+			if ind_map[ind_index]:
+				if indexes[ind_index]['type'] == 't':
+					#node we are turning into a TL
+					nodeid = nodes[index].get('id')
 
-			edgeids =[]
-			for e in list(scenario['edg'].getroot()):
-				if e.get('from')==nodeid or e.get('to')==nodeid:
-					edgeids.append(e.get('id'))
+					edgeids =[]
+					for e in list(scenario['edg'].getroot()):
+						if e.get('from')==nodeid or e.get('to')==nodeid:
+							edgeids.append(e.get('id'))
 
-			connectionSets = []
-			c_i=0
-			for e in list(scenario['edg'].getroot()):
-				if e.get('to') == nodeid:
-					connectionSet = 0
-					for c in list(scenario['con'].getroot()):
-						if c.get('from')==e.get('id') and c.get('to') in edgeids:
-							c.set('tl',str(nodeid))
-							c.set('linkIndex',str(c_i))
-							c_i+=1
-							connectionsToAppend.append(c)
-							connectionSet+=1
-					connectionSets.append(connectionSet)
+					connectionSets = []
+					c_i=0
+					for e in list(scenario['edg'].getroot()):
+						if e.get('to') == nodeid:
+							connectionSet = 0
+							for c in list(scenario['con'].getroot()):
+								if c.get('from')==e.get('id') and c.get('to') in edgeids:
+									c.set('tl',str(nodeid))
+									c.set('linkIndex',str(c_i))
+									c_i+=1
+									connectionsToAppend.append(c)
+									connectionSet+=1
+							connectionSets.append(connectionSet)
 
-			newTLL = ET.SubElement(scenario['tll'].getroot(),'tlLogic')
-			newTLL.set('id',str(nodeid))
-			newTLL.set('type','static')
-			newTLL.set('programID','0')
-			newTLL.set('offset','0')
+					newTLL = ET.SubElement(scenario['tll'].getroot(),'tlLogic')
+					newTLL.set('id',str(nodeid))
+					newTLL.set('type','static')
+					newTLL.set('programID','0')
+					newTLL.set('offset','0')
 
-			#alternate durations, first it the red/green phase, then the yellow phase.
-			yellow = False
-			for logic in tl_combinations(connectionSets):
-				phase = ET.SubElement(newTLL,'phase')
-				if yellow:
-					phase.set('duration',str(indexes[index]['ytime'])) #TODO testing parameter, use meaningful parameters
-				else:
-					phase.set('duration',str(indexes[index]['grtime'])) #TODO testing parameter, use meaningful parameters
-				phase.set('state',logic)
-				yellow = not yellow
+					#alternate durations, first it the red/green phase, then the yellow phase.
+					yellow = False
+					for logic in tl_combinations(connectionSets):
+						phase = ET.SubElement(newTLL,'phase')
+						if yellow:
+							phase.set('duration',str(indexes[ind_index]['ytime'])) #TODO testing parameter, use meaningful parameters
+						else:
+							phase.set('duration',str(indexes[ind_index]['grtime'])) #TODO testing parameter, use meaningful parameters
+						phase.set('state',logic)
+						yellow = not yellow
 
-			#update node file to trafficL_light
-			scenario['nod'].getroot()[1:][index].set('type','traffic_light')
+					#update node file to trafficL_light
+					scenario['nod'].getroot()[1:][index].set('type','traffic_light')
 
-		else: # if indexes[index]['type'] == 'p':
-			#update node file to priority
-			scenario['nod'].getroot()[1:][index].set('type','priority')
+				else:# indexes[index]['type'] == 'p':
+					#update node file to priority
+					scenario['nod'].getroot()[1:][index].set('type','priority')
+				#else:#indexes[index]['type'] == '??':
+					#update node file to ??
+					#scenario['nod'].getroot()[1:][index].set('type','??')
+			ind_index+=1
 
+	for c in default_tll_connections:
+		scenario['tll'].getroot().append(c)
 	for c in connectionsToAppend:
 		scenario['tll'].getroot().append(c)
 
