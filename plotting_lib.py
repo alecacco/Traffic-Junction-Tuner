@@ -72,8 +72,10 @@ def get_pareto_ranks(population,signs,objectives_indexes):
 	while len(curpop)>0:
 		pareto = get_pareto_front(curpop,signs,objectives_indexes)
 		for p in pareto:
-			ranks[population.index(p)] = currank
-			curpop.remove(p)
+			if p in curpop:	#don't try removing individuals already removed (i.e. happpens withidentical fitness)
+				for i,pp in [(i,pp) for i,pp in enumerate(population) if pp==p]: #identical fitness set and removed together
+					ranks[i] = currank
+					curpop.remove(pp)
 		currank += 1
 	return ranks
 
