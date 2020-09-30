@@ -80,7 +80,7 @@ def generate_plot_matrix():
 	dprint("[ Requests for matrix plot: " + str(requested_gens) + " ]")
 
 	f = plt.figure(2,figsize=(9,6))
-
+        f.subplots_adjust(wspace=1.0/20,hspace=1.0/15)
 
 	TJP.generate_plot_matrix(
 		f,
@@ -607,7 +607,7 @@ def main():
 			"matrix_all" in args.plot_type.split(" ")
 		) and args.plot==1:
 		allowed_populations = allowed_populations.union(set([int(gen)%len(files) for gen in args.matrix_plot.split(" ") if gen.isdigit() or (gen[0]=="-" and gen[1:].isdigit())]))
-	if ("box" in args.plot_type.split(" ") or "vbox" in args.plot_type.split(" ")) and args.plot==1:
+	if ("linemax" in args.plot_type.split(" ") or "linemin" in args.plot_type.split(" ") or "lineavg" in args.plot_type.split(" ") or "box" in args.plot_type.split(" ") or "vbox" in args.plot_type.split(" ")) and args.plot==1:
 		allowed_populations = allowed_populations.union(set(range(len(files))))
 
 	allowed_populations = list(allowed_populations)
