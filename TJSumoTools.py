@@ -9,9 +9,9 @@ import xml.dom.minidom as minidom
 from threading import RLock
 from threading import Thread
 
-debug = True
+debug = False
 hang = False
-pollingTime = 1
+pollingTime = 10
 
 implemented_objectives = ["arrived","teleported","accidents","fuel","avg_speed","var_speeds","CO2","PMx"]
 junction_types = ["priority","traffic_light"]
@@ -350,7 +350,13 @@ def execute_scenarios(parametersList, jobs, port):
 		for simidtd in simidtodelete:
 			del(processes[simidtd])	
 
-		time.sleep(pollingTime)
+		#yeah, I know, it's busy waiting, sub-ideal to say the least, 
+		# "it's just for testing" - AC 2020
+		current_time = time.time()
+		while time.time()<current_time+pollingTime:
+			pass
+
+		#time.sleep(pollingTime)
 
 	simids = list(range(simid_inc))
 	for res in simids:
@@ -379,6 +385,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 	#data collection via traci
 	while(procinfo["stepsLeft"]>=0):
 		procinfo["stepsLeft"]-=1
+		print(str(simid)+" step")
 		procinfo["traci"].simulationStep()
 		if procinfo["sumoDelay"] > 0:
 			time.sleep(procinfo["sumoDelay"])
@@ -390,6 +397,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 			if "teleported" in procinfo["objectives"]:
 					procinfo["teleported"] += procinfo["traci"].simulation.getStartingTeleportNumber()
 
+			print(str(simid)+" start retrieving")
 			if "fuel" in procinfo["objectives"] or "avg_speed" in procinfo["objectives"] or "var_speeds" in procinfo["objectives"] or "CO2" in procinfo["objectives"] or "PMx" in procinfo["objectives"]:
 				vehicleIDs = procinfo["traci"].vehicle.getIDList()
 				if len(vehicleIDs)>0:
@@ -403,6 +411,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 						procinfo["CO2"].append(np.sum([procinfo["traci"].vehicle.getCO2Emission(veh) for veh in vehicleIDs]))
 					if "PMx" in procinfo["objectives"]:
 						procinfo["PMx"].append(np.sum([procinfo["traci"].vehicle.getPMxEmission(veh) for veh in vehicleIDs]))
+			print(str(simid)+" stop retrieving")
 	
 	procinfo["traci"].close()
 
@@ -417,7 +426,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 	finally:
 		lock.release()
 
-def generate_route(route):
+def generate_route(route,wait=True):
 	dprint("[ generating route... ]")
 	randomTripsLaunch = str(os.environ["SUMO_HOME"]+"/tools/randomTrips.py \
 			-n " + route['sumoScenario'] + ".net.xml \
@@ -426,6 +435,7 @@ def generate_route(route):
 			+ " -p " + str(route["repetitionRate"])
 			+ " -e " + str(route["sumoEnd"])
 			+ ((" --additional-file " + route["output"] + ".add.xml") if "emissionClass" in route.keys() else "")
+			+ " -o " + route["output"] + ".trips.xml"
 			+ " -r " + route["output"] + ".rou.xml"
 		).split()
 
@@ -440,10 +450,36 @@ def generate_route(route):
 	else:
 		randomTripsProcess = subprocess32.Popen(randomTripsLaunch,stdout=FNULL,stderr=FNULL)
 
-	randomTripsProcess.wait()
-	os.remove(route["output"] + ".rou.alt.xml")
+	if wait==True:
+		randomTripsProcess.wait()
+		os.remove(route["output"] + ".rou.alt.xml")
+		dprint("[ randomtrips return code: " + str(randomTripsProcess.returncode) + " ]")
+	else: 
+		return randomTripsProcess
+		dprint("[ randomtrips process running ]")
+
 
 def generate_routes(routes, jobs):
 	#TODO multithreading
-	for route in routes:
-		generate_route(route)
+	#for route in routes:
+	#	generate_route(route)
+	done = 0
+	todo_queue=routes+[]
+	currentJobs = 0
+	processes = {}
+	while done < len(routes) or currentJobs>0:
+		while currentJobs<jobs and len(todo_queue)>0:
+			parameterSet = todo_queue.pop()
+			p = generate_route(parameterSet,wait=False)
+			processes[p.pid]=p
+			currentJobs+=1
+		pidtodelete=[]
+		for pid, p in processes.iteritems():
+			p.poll()
+			if p.returncode != None:
+				done+=1
+				currentJobs-=1
+				dprint("[ randomtrips for "+ str(pid)+" return code: " + str(p.returncode) + " ]")
+				pidtodelete.append(pid)
+		for pid in pidtodelete:
+			del(processes[pid])

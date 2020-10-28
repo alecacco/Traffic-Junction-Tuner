@@ -80,7 +80,7 @@ def get_pareto_ranks(population,signs,objectives_indexes):
 	return ranks
 
 
-def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,front_only=False,series_names=[],title="Matrix plot",reference_scenarios_data=[]):
+def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,front_only=False,series_names=[],title="Matrix plot",reference_scenarios_data=[],reference_master_points=[]):
 	plt.ioff()
 
 	f.suptitle(title)
@@ -131,7 +131,7 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 		for j in range(matrix_size):
 			if i>j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)
-				plot_limits = {
+                                plot_limits = {
 					"x":[np.inf,-np.inf],
 					"y":[np.inf,-np.inf]
 				}
@@ -139,7 +139,7 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 				pareto_fronts = []
 				for pop in data:
 					population = [[ind[o] for o in range(objectives)] for ind in pop]
-					pareto1 = get_pareto_front(population,signs,[i,j])
+					pareto1 = get_pareto_front(population,signs,range(len(signs)))
 					if not front_only:
 						ax.scatter(
 							[population[c][j] for c in range(len(population)) if population[c] not in pareto1],
@@ -164,8 +164,8 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 						reference_scenario_data = reference_scenarios_data[rs]
 						ref_quantity = len(reference_scenario_data[0])
 						ref_gen = [[reference_scenario_data[o][c] for o in range(objectives)] for c in range(ref_quantity)]
-						pareto2 = get_pareto_front(ref_gen,signs,[i,j])
-						if not front_only:
+						pareto2 = get_pareto_front(ref_gen,signs,range(len(signs)))
+						if True:#not front_only:
 							ax.scatter(
 								[ref_gen[c][j]for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
 								[ref_gen[c][i] for c in range(len(ref_gen)) if ref_gen[c] not in pareto2],
@@ -199,12 +199,24 @@ def generate_plot_matrix(f,data,objectives,signs,titles=None,references=False,fr
 						fr[0],
 						fr[1],
 						marker="D",
-						color="C"+str(color%10),
-						edgecolors='r'
+						color="C"+str(color%10)#,
+						#edgecolors='r'
 					) 
 					color+=1
 					if color==3:
 						color+=1
+				if reference_master_points!=None:
+					color -= len(reference_master_points)
+					for rmp in reference_master_points:
+						ax.scatter(
+							rmp[j],
+							rmp[i],
+							250,
+							marker="*",
+							color="C"+str(color%10),
+							edgecolor="r"
+						)
+
 
 			elif i==j:
 				ax = f.add_subplot(matrix_size,matrix_size,index+1)

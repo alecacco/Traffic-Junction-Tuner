@@ -15,6 +15,7 @@ parser.add_argument("-rs","--reference-scenario", type=str, help="Load a .csv fi
 parser.add_argument("-mp","--matrix-plot", type=str, help="Select what generations to plot in the matrix plot (if requested). Provide a string with all the requested generations separated by a space.", required=False)
 parser.add_argument("-st","--save-table", type=str, help="Select generations table to save in csv format. Provide a string with all the requests separated by a space.", required=False)
 parser.add_argument("-o","--objectives", type=str, help="Specify objectives of the optimization. If a results_storage file is found, this is ignored and keys from the file are used instead.")
+parser.add_argument("-cl","--custom-legend", type=str, help="Specify custom legend entries.", required=False, default=None)
 parser.add_argument("-pp","--plot-pdf", type=str, help="Name of the file in which plots are are saved instead of opening the GUI (will be saved in $folder/results)", required=False, default=None)
 parser.add_argument("-pf","--plot-format", type=str, help="Specify the format for the saved plot, space separated list, possible choices:\"pdf\",\"eps\". Default is \"pdf\"", default="pdf")
 #TODO [...] Use \"t\", \"pg\" and/or \"mp\" to include generations specified for other parameters. Provide a string with all the requests separated by a space. Default is \"t\".", required=False, default="t")
@@ -41,6 +42,7 @@ def dprint(s):
 files = []
 populations = []
 reference_scenarios_data = None
+reference_master_points = None
 res_storage = None
 
 #debug output
@@ -90,9 +92,10 @@ def generate_plot_matrix():
 		titles = titles,
 		references = references,
 		front_only = front_only,
-		series_names = ["Generation "+str(r) for r in requested_gens],
+		series_names = ["Generation "+str(r) for r in requested_gens] if args.custom_legend==None else args.custom_legend.split(" "),
 		title = args.folder+" - matrix plot",
-		reference_scenarios_data = reference_scenarios_data
+		reference_scenarios_data = reference_scenarios_data,
+		reference_master_points = reference_master_points
 	)
 
 	if args.plot_pdf!=None:
@@ -206,7 +209,7 @@ def plot_all():
 		if "vbox" in args.plot_type.split():
 			f = plt.figure(1,figsize=(6,5*plotnumber))
 		else:
-			f = plt.figure(1,figsize=(9,6))
+			f = plt.figure(1,figsize=(13.5,9))
 		f.suptitle(args.folder+" - results")
 
 		index = 0
@@ -237,12 +240,12 @@ def plot_all():
 			if "box" in args.plot_type.split() or "vbox" in args.plot_type.split():
 				ax.boxplot([[cand.fitness[index]*signs[index] for cand in pop] for pop in populations], positions=xticks)
 			
-			plt.gca().set_xticklabels([
+			"""plt.gca().set_xticklabels([
 				tl 
 				if (tl%(len(populations)/5)==0) 
 				else "" 
 				for tl in list(range(0,len(populations)))
-			])
+			])"""
 
 			#ax.xticks(locs)
 
@@ -399,6 +402,7 @@ def load_reference_data(ref_filenames):
 		"M":np.mean,
 		"V":np.var
 	}
+	master_points = []
 	for ref_filename in ref_filenames:
 		with open(ref_filename, 'rb') as ref_file:
 			reference_scenario_data = pickle.load(ref_file)
@@ -418,7 +422,8 @@ def load_reference_data(ref_filenames):
 				and token[1] in ["H","L","M","V"]
 			]))
 
-		for cobj in cobjectives:
+		ref_master_point = []
+		for cobj in sorted(cobjectives,key=lambda x: [o[2:-1] for o in objectives+additional_info].index(x) ):
 			reference_scenario_data[cobj] = [
 				operations[cobj[0]]([
 					reference_scenario_data[tr][i][cobj[2:]] 
@@ -426,13 +431,17 @@ def load_reference_data(ref_filenames):
 				]) 
 				for i in range(reps)
 			]
+			ref_master_point.append(operations[cobj[1]](reference_scenario_data[cobj]))
+
+		master_points.append(ref_master_point)
+
 		final_reference_scenario_data = {}
 		for comb_obj in objectives:
 			final_reference_scenario_data[comb_obj] = [parseRPN(comb_obj,{ k:reference_scenario_data[k][i] for k in cobjectives}) for i in range(reps)]
 
 		res.append([final_reference_scenario_data[obj] for obj in objectives])
 	
-	return res
+	return res,master_points
 	
 #Table printing procedure
 def print_table(table):
@@ -565,7 +574,7 @@ def execute_individual(pop,ind,rep=0):
 	)
 
 def main():
-	global reference_scenarios_data,objectives,res_storage,signs,titles,additional_info,ranks
+	global reference_scenarios_data,reference_master_points,objectives,res_storage,signs,titles,additional_info,ranks
 
 	dprint("[ Loading results storage ]")
 	if args.objectives != None:
@@ -629,7 +638,7 @@ def main():
 	
 	dprint("[ \tChecking reference scenario request ]")
 	if args.reference_scenario != None:
-		reference_scenarios_data = load_reference_data(args.reference_scenario.split(" "))
+		reference_scenarios_data,reference_master_points = load_reference_data(args.reference_scenario.split(" "))
 	elif args.matrix_plot!=None and ("r" in args.matrix_plot.split(" ")) and ("matrix" in args.plot_type.split()):
 		print("\033[1;33;40mWARNING:\033[1;37;40m reference scenario not specific, but requested for matrix plot! It will not be shown.")
 		args.plot_type = " ".join([pt for pt in args.plot_type.split() if pt!="matrix"])
