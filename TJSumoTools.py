@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 from threading import RLock
 from threading import Thread
+import random
 
 debug = False
 hang = False
@@ -15,6 +16,11 @@ pollingTime = 10
 
 implemented_objectives = ["arrived","teleported","accidents","fuel","avg_speed","var_speeds","CO2","PMx"]
 junction_types = ["priority","traffic_light"]
+
+additional_parameters = {
+	"CO2": ["--tripinfo-output tripinfo%s.tri.xml","--tripinfo-output.write-unfinished", "--device.emissions.explicit CO2_abs,PMx_abs", "--device.emissions.probability 1"],
+	"PMx": ["--tripinfo-output tripinfo%s.tri.xml","--tripinfo-output.write-unfinished", "--device.emissions.explicit CO2_abs,PMx_abs", "--device.emissions.probability 1"],
+}
 
 FNULL = open(os.devnull, 'w')
 
@@ -40,20 +46,31 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 		sumoRandom = " --random"
 	else:
 		sumoRandom = " --seed " +str(seed)
-	print((".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml" )
+
+	tripsID = str(random.randint(1111111,9999999))
+
 	sumoLaunch = str(launch
 		+" -n " + scenario +".net.xml"
-		+" -r " + (".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml" 
+		+" -r " + (".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml"
 		+ sumoAutoStart
 		+ sumoRandom
-		+" -Q" 
-		+ " --step-length " + ("%.2f" % step_size) 
+		+ " -Q"
+		+ " --step-length " + ("%.2f" % step_size)
 		+ " --remote-port " + str(port)
+		+ " "+" ".join(
+			list(set([
+				aps if "%" not in aps else aps%tripsID
+				for o in objectives 
+				if o in additional_parameters.keys() 
+				for aps in additional_parameters[o] 
+			]))
+		)
 		#TODO PSEUDO-RANDOM SEED (seed parameter)
 	).split(" ")
 
+	print("Launching %s"%" ".join(sumoLaunch))
 	if (debug):
-		sumoProcess = subprocess32.Popen(sumoLaunch) 
+		sumoProcess = subprocess32.Popen(sumoLaunch)
 	else:
 		sumoProcess = subprocess32.Popen(sumoLaunch, stdout=FNULL, stderr=FNULL)
 
@@ -97,20 +114,20 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 			dprint("[ sim results: accidents %d, arrived %d, teleported %d, avg speed %f ]"%(accidents,arrived,teleported,np.mean(avg_speeds)))
 		else:
 			dprint("[ simulation completed with no data collection ]")
-		
+
 		t.close()
 		sumoProcess.wait()
 		dprint("[ simulation return code: " + str(sumoProcess.returncode)+ " ]")
 		return({
-			"accidents":accidents, 
-			"arrived":arrived, 
-			"teleported":teleported, 
+			"accidents":accidents,
+			"arrived":arrived,
+			"teleported":teleported,
 			"avg_speed":np.mean(avg_speeds),
 			"sum_fuel_consumption":np.sum(sum_fuel_consumption)
-		})	
+		})
 	else:
 		dprint("[ simulation launched and running ]")
-		return {"process":sumoProcess,"traci":t}
+		return {"process":sumoProcess,"traci":t,"tripsID":tripsID}
 
 def generate_scenario(sumoScenario,debug,wait=True,**kwargs):
 	for part in ["node","edge","connection","type","tllogic","output"]:
@@ -134,7 +151,7 @@ def generate_scenario(sumoScenario,debug,wait=True,**kwargs):
 	if wait==True:
 		netconvertProcess.wait()
 		dprint("[ netconvert return code: " + str(netconvertProcess.returncode) + " ]")
-	else: 
+	else:
 		return netconvertProcess
 		dprint("[ netconvert process running ]")
 
@@ -289,7 +306,7 @@ def execute_scenarios(parametersList, jobs, port):
 			\->avg_speed = ##
 	'''
 
-	portPool = 	list(np.array((range(jobs)))+port)
+	portPool = list(np.array((range(jobs)))+port)
 	dprint("[ Port pool: " + str(portPool[0]) + "-" + str(portPool[-1]) + " ]")
 
 	done = 0
@@ -319,6 +336,7 @@ def execute_scenarios(parametersList, jobs, port):
 			processes[simid_inc]={
 				"process":sim["process"],
 				"traci":sim["traci"],
+				"tripsID":sim["tripsID"],
 				"sumoPort": usable_port,
 				"stepsLeft": parameterSet['sumoEnd'],
 				"sumoDelay": parameterSet["sumoDelay"],
@@ -348,9 +366,9 @@ def execute_scenarios(parametersList, jobs, port):
 				simidtodelete.append(simid)
 
 		for simidtd in simidtodelete:
-			del(processes[simidtd])	
+			del(processes[simidtd])
 
-		#yeah, I know, it's busy waiting, sub-ideal to say the least, 
+		#yeah, I know, it's busy waiting, sub-ideal to say the least,
 		# "it's just for testing" - AC 2020
 		current_time = time.time()
 		while time.time()<current_time+pollingTime:
@@ -378,14 +396,18 @@ def execute_scenarios(parametersList, jobs, port):
 			parameterSet["sumoOutput"],
 		))
 	'''
-	
+
 	return results
+
+def get_from_xml(tripsID,key,fun,tag=None):
+	t = ET.parse("tripinfo%s.tri.xml"%tripsID)
+	r = t.getroot()
+	return fun([float(e.attrib[key]) if tag==None else float(e.find(tag).attrib[key]) for e in r])
 
 def advance_simulation(simid, procinfo, results_d, lock):
 	#data collection via traci
 	while(procinfo["stepsLeft"]>=0):
 		procinfo["stepsLeft"]-=1
-		print(str(simid)+" step")
 		procinfo["traci"].simulationStep()
 		if procinfo["sumoDelay"] > 0:
 			time.sleep(procinfo["sumoDelay"])
@@ -397,23 +419,26 @@ def advance_simulation(simid, procinfo, results_d, lock):
 			if "teleported" in procinfo["objectives"]:
 					procinfo["teleported"] += procinfo["traci"].simulation.getStartingTeleportNumber()
 
-			print(str(simid)+" start retrieving")
-			if "fuel" in procinfo["objectives"] or "avg_speed" in procinfo["objectives"] or "var_speeds" in procinfo["objectives"] or "CO2" in procinfo["objectives"] or "PMx" in procinfo["objectives"]:
+			if "fuel" in procinfo["objectives"] or "avg_speed" in procinfo["objectives"] or "var_speeds" in procinfo["objectives"]: #or "CO2" in procinfo["objectives"] or "PMx" in procinfo["objectives"]:
 				vehicleIDs = procinfo["traci"].vehicle.getIDList()
 				if len(vehicleIDs)>0:
 					if "avg_speed" in procinfo["objectives"]:
-						procinfo["avg_speed"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+						procinfo["avg_speed"].append(np.mean([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))
 					if "var_speeds" in procinfo["objectives"]:
-						procinfo["avg_speed"].append(np.var([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))				
+						procinfo["avg_speed"].append(np.var([procinfo["traci"].vehicle.getSpeed(veh) for veh in vehicleIDs]))
 					if "fuel" in procinfo["objectives"]:
 						procinfo["fuel"].append(np.sum([procinfo["traci"].vehicle.getFuelConsumption(veh) for veh in vehicleIDs]))
-					if "CO2" in procinfo["objectives"]:
-						procinfo["CO2"].append(np.sum([procinfo["traci"].vehicle.getCO2Emission(veh) for veh in vehicleIDs]))
-					if "PMx" in procinfo["objectives"]:
-						procinfo["PMx"].append(np.sum([procinfo["traci"].vehicle.getPMxEmission(veh) for veh in vehicleIDs]))
-			print(str(simid)+" stop retrieving")
-	
+					#if "CO2" in procinfo["objectives"]:
+					#	procinfo["CO2"].append(np.sum([procinfo["traci"].vehicle.getCO2Emission(veh) for veh in vehicleIDs]))
+					#if "PMx" in procinfo["objectives"]:
+					#	procinfo["PMx"].append(np.sum([procinfo["traci"].vehicle.getPMxEmission(veh) for veh in vehicleIDs]))
+
 	procinfo["traci"].close()
+
+	if "CO2" in procinfo["objectives"]:
+		procinfo["CO2"] = get_from_xml(procinfo["tripsID"],"CO2_abs",sum,tag="emissions")
+	if "PMx" in procinfo["objectives"]:
+		procinfo["PMx"] = get_from_xml(procinfo["tripsID"],"PMx_abs",sum,tag="emissions")
 
 	lock.acquire()
 	try:
@@ -430,7 +455,7 @@ def generate_route(route,wait=True):
 	dprint("[ generating route... ]")
 	randomTripsLaunch = str(os.environ["SUMO_HOME"]+"/tools/randomTrips.py \
 			-n " + route['sumoScenario'] + ".net.xml \
-			--prefix " + route["prefix"] 
+			--prefix " + route["prefix"]
 			+ ((" --trip-attributes=type=\"type_"+route['emissionClass']+"\"") if "emissionClass" in route.keys() else "")
 			+ " -p " + str(route["repetitionRate"])
 			+ " -e " + str(route["sumoEnd"])
@@ -454,7 +479,7 @@ def generate_route(route,wait=True):
 		randomTripsProcess.wait()
 		os.remove(route["output"] + ".rou.alt.xml")
 		dprint("[ randomtrips return code: " + str(randomTripsProcess.returncode) + " ]")
-	else: 
+	else:
 		return randomTripsProcess
 		dprint("[ randomtrips process running ]")
 
