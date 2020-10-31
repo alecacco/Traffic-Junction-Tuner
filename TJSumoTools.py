@@ -399,7 +399,7 @@ def execute_scenarios(parametersList, jobs, port):
 
 	return results
 
-def get_from_xml(tripsID,key,fun,tag=None,tries=3):
+def get_from_xml(tripsID,key,fun,tag=None,max_tries=3):
 	t = None
 	tries=0
 	while t==None and tries<max_tries:
