@@ -399,8 +399,17 @@ def execute_scenarios(parametersList, jobs, port):
 
 	return results
 
-def get_from_xml(tripsID,key,fun,tag=None):
-	t = ET.parse("tripinfo%s.tri.xml"%tripsID)
+def get_from_xml(tripsID,key,fun,tag=None,tries=3):
+	t = None
+	tries=0
+	while t==None and tries<max_tries:
+		try:
+			t_try = ET.parse("tripinfo%s.tri.xml"%tripsID)
+			t = t_try
+		except:
+			print("xml parsing error on additional output for %s on tripID %s, retrying every second(%d)..."%(key,tripsID,tries))
+			tries += 1
+			time.sleep(1)	
 	r = t.getroot()
 	return fun([float(e.attrib[key]) if tag==None else float(e.find(tag).attrib[key]) for e in r])
 
