@@ -49,6 +49,15 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 
 	tripsID = str(random.randint(1111111,9999999))
 
+	additional_launch_params = list(set([
+		aps if "%" not in aps else aps%tripsID
+		for o in objectives 
+		if o in additional_parameters.keys() 
+		for aps in additional_parameters[o] 
+	]))
+
+	print("\"%s\""%str(" ".join(additional_launch_params)))
+
 	sumoLaunch = str(launch
 		+" -n " + scenario +".net.xml"
 		+" -r " + (".rou.xml,".join(routes) if type(routes)==list  else routes)+".rou.xml"
@@ -57,18 +66,12 @@ def execute_scenario(launch,scenario,routes,step_size,port,autostart,end,delay,d
 		+ " -Q"
 		+ " --step-length " + ("%.2f" % step_size)
 		+ " --remote-port " + str(port)
-		+ " "+" ".join(
-			list(set([
-				aps if "%" not in aps else aps%tripsID
-				for o in objectives 
-				if o in additional_parameters.keys() 
-				for aps in additional_parameters[o] 
-			]))
-		)
+		+ (" " if len(additional_launch_params)>0 else "")
+		+ " ".join(additional_launch_params)
 		#TODO PSEUDO-RANDOM SEED (seed parameter)
 	).split(" ")
 
-	print("Launching %s"%" ".join(sumoLaunch))
+	print("Launching \"%s\""%" ".join(sumoLaunch))
 	if (debug):
 		sumoProcess = subprocess32.Popen(sumoLaunch)
 	else:
@@ -336,6 +339,7 @@ def execute_scenarios(parametersList, jobs, port):
 			processes[simid_inc]={
 				"process":sim["process"],
 				"traci":sim["traci"],
+				"saved":False,
 				"tripsID":sim["tripsID"],
 				"sumoPort": usable_port,
 				"stepsLeft": parameterSet['sumoEnd'],
@@ -358,7 +362,7 @@ def execute_scenarios(parametersList, jobs, port):
 		simidtodelete=[]
 		for simid, procinfo in processes.iteritems():
 			procinfo["process"].poll()
-			if procinfo["process"].returncode != None:
+			if procinfo["process"].returncode != None and procinfo["saved"]:
 				done+=1
 				currentJobs-=1
 				portPool.append(procinfo["sumoPort"])
@@ -459,6 +463,7 @@ def advance_simulation(simid, procinfo, results_d, lock):
 				results_d[simid][k] = procinfo[k]
 	finally:
 		lock.release()
+		procinfo["saved"]=True
 
 def generate_route(route,wait=True):
 	dprint("[ generating route... ]")
